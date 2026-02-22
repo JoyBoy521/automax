@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, XCircle, ChevronRight, FileText, CreditCard } from 'lucide-react';
-import { getAdminOrderList, updateOrderStatus } from '../../api';
+import { getAdminOrderList, getStoreList, updateOrderStatus } from '../../api';
 
 export default function OrderList() {
+  const role = localStorage.getItem('role');
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [stores, setStores] = useState([]);
+  const [storeFilter, setStoreFilter] = useState('');
 
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
-      const res = await getAdminOrderList();
+      const params = role === 'ADMIN' && storeFilter ? { storeId: storeFilter } : undefined;
+      const res = await getAdminOrderList(params);
       if (res.data && res.data.success) {
         setOrders(res.data.data || []);
       }
@@ -22,7 +26,23 @@ export default function OrderList() {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+    const timer = setInterval(fetchOrders, 15000);
+    const onNotice = () => fetchOrders();
+    window.addEventListener('admin:notice', onNotice);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('admin:notice', onNotice);
+    };
+  }, [storeFilter]);
+
+  useEffect(() => {
+    if (role !== 'ADMIN') return;
+    getStoreList().then((res) => {
+      if (res.data?.success) {
+        setStores(res.data.data || []);
+      }
+    });
+  }, [role]);
 
   const handleStatusChange = async (orderId, newStatus, actionName) => {
     const isConfirm = window.confirm(`确定要执行【${actionName}】操作吗？\n注意：取消或退款操作将自动释放该车辆库存！`);
@@ -51,6 +71,18 @@ export default function OrderList() {
     }
   };
 
+  const formatCnDateTime = (value) => {
+    if (!value) return '未预约';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${y}年${m}月${d}日 ${hh}:${mm}`;
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
@@ -58,6 +90,18 @@ export default function OrderList() {
           <h1 className="text-2xl font-bold text-gray-900">交易订单中心</h1>
           <p className="text-sm text-gray-500 mt-1">处理 O2O 线下核销、过户状态扭转与库存释放</p>
         </div>
+        {role === 'ADMIN' && (
+          <select
+            value={storeFilter}
+            onChange={(e) => setStoreFilter(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700"
+          >
+            <option value="">全部门店</option>
+            {stores.map((s) => (
+              <option key={s.id} value={s.id}>{s.storeName}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
@@ -66,6 +110,7 @@ export default function OrderList() {
             <tr>
               <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">订单流水号 / 时间</th>
               <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">关联车辆 (SKU)</th>
+              <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">预约到店</th>
               <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">金额</th>
               <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">当前状态</th>
               <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">流转操作</th>
@@ -73,14 +118,15 @@ export default function OrderList() {
           </thead>
           <tbody className="divide-y divide-gray-50">
             {isLoading ? (
-              <tr><td colSpan="5" className="text-center py-10 text-gray-400">正在同步订单数据...</td></tr>
+              <tr><td colSpan="6" className="text-center py-10 text-gray-400">正在同步订单数据...</td></tr>
             ) : orders.length > 0 ? (
               orders.map(order => {
                 const ui = getStatusUI(order.status);
+                const orderNo = order.displayOrderNo || order.orderNo || `AMX-${String(order.id || '').padStart(6, '0')}`;
                 return (
                   <tr key={order.id} className="hover:bg-blue-50/30 transition-colors group">
                     <td className="px-6 py-5">
-                      <p className="font-mono text-sm font-bold text-gray-900">{order.orderNo}</p>
+                      <p className="font-mono text-sm font-bold text-gray-900">{orderNo}</p>
                       <p className="text-xs text-gray-400 mt-1">{order.createTime || '刚刚'}</p>
                     </td>
                     <td className="px-6 py-5">
@@ -92,6 +138,12 @@ export default function OrderList() {
                     >
                     进入后台档案室 <ChevronRight size={12} />
                     </button>
+                    </td>
+                    <td className="px-6 py-5">
+                      <p className="text-xs text-gray-700 font-semibold">{formatCnDateTime(order.appointmentTime)}</p>
+                      {order.appointmentRemark && (
+                        <p className="text-[10px] text-gray-400 mt-1 line-clamp-1">备注：{order.appointmentRemark}</p>
+                      )}
                     </td>
                     <td className="px-6 py-5">
                       {/* 🌟 修复点：将 amount 改为 payAmount */}
@@ -115,14 +167,24 @@ export default function OrderList() {
                         </>
                       )}
                       {order.status === 2 && (
-                        <button onClick={() => handleStatusChange(order.id, 3, '提交车管所过户')} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 shadow-sm transition-transform active:scale-95">
-                          开始过户
-                        </button>
+                        <>
+                          <button onClick={() => handleStatusChange(order.id, 3, '提交车管所过户')} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 shadow-sm transition-transform active:scale-95">
+                            开始过户
+                          </button>
+                          <button onClick={() => handleStatusChange(order.id, 6, '退款并释放库存')} className="px-3 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100 hover:bg-red-100 transition-colors">
+                            退款退车
+                          </button>
+                        </>
                       )}
                       {order.status === 3 && (
-                        <button onClick={() => handleStatusChange(order.id, 4, '确认过户完毕，交易闭环')} className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg hover:bg-emerald-600 shadow-sm transition-transform active:scale-95">
-                          过户完成 (完结)
-                        </button>
+                        <>
+                          <button onClick={() => handleStatusChange(order.id, 4, '确认过户完毕，交易闭环')} className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg hover:bg-emerald-600 shadow-sm transition-transform active:scale-95">
+                            过户完成 (完结)
+                          </button>
+                          <button onClick={() => handleStatusChange(order.id, 6, '退款并释放库存')} className="px-3 py-1.5 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100 hover:bg-red-100 transition-colors">
+                            退款退车
+                          </button>
+                        </>
                       )}
                       {(order.status === 4 || order.status === 5 || order.status === 6) && (
                         <span className="text-xs text-gray-300 font-bold italic">已归档</span>
@@ -133,7 +195,7 @@ export default function OrderList() {
               })
             ) : (
               <tr>
-                <td colSpan="5" className="px-6 py-16 text-center text-gray-400 italic">
+                <td colSpan="6" className="px-6 py-16 text-center text-gray-400 italic">
                   暂无交易订单
                 </td>
               </tr>

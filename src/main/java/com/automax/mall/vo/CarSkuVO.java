@@ -23,6 +23,10 @@ public class CarSkuVO {
     // 来自 Store 表 (联表获取)
     private String storeName;   // 门店名称
     private String city;        // 所在城市
+    private String detailAddress;
+    private String contactPhone;
+    private BigDecimal longitude;
+    private BigDecimal latitude;
     private String firstRegDate;
     private String emissionStd;
     private Integer carScore;

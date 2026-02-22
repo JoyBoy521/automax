@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 @RestController
@@ -38,5 +39,31 @@ public class AuthController {
             );
         }
         return Map.of("code", 401, "success", false, "msg", "用户名或密码错误");
+    }
+
+    @PostMapping("/register")
+    public Map<String, Object> register(@RequestBody Map<String, String> body) {
+        String username = body.get("username");
+        String password = body.get("password");
+        String phone = body.get("phone");
+
+        if (username == null || username.trim().isEmpty() || password == null || password.trim().isEmpty()) {
+            return Map.of("code", 400, "success", false, "msg", "用户名和密码不能为空");
+        }
+
+        SysUser exist = userMapper.selectOne(new QueryWrapper<SysUser>().eq("username", username.trim()));
+        if (exist != null) {
+            return Map.of("code", 400, "success", false, "msg", "用户名已存在");
+        }
+
+        SysUser user = new SysUser();
+        user.setUsername(username.trim());
+        user.setPassword(password);
+        user.setPhone(phone == null ? null : phone.trim());
+        user.setRole("CUSTOMER");
+        user.setCreateTime(LocalDateTime.now());
+        userMapper.insert(user);
+
+        return Map.of("code", 200, "success", true, "msg", "注册成功，请登录");
     }
 }

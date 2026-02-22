@@ -15,6 +15,7 @@ export default function CarDetail() {
 
   const [activeImg, setActiveImg] = useState(0);
   const [orderStatus, setOrderStatus] = useState('idle');
+  const [orderFailMsg, setOrderFailMsg] = useState('');
   const [carData, setCarData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -35,15 +36,18 @@ export default function CarDetail() {
   const handleLockCar = async () => {
     if (!carData) return;
     setOrderStatus('loading');
+    setOrderFailMsg('');
     try {
       const res = await createOrder({ skuId: carData.id });
       if (res.data.success) {
         setOrderStatus('success');
       } else {
+        setOrderFailMsg(res.data?.msg || '预定失败，请稍后重试');
         setOrderStatus('failed');
       }
     } catch (error) {
       console.error("锁车请求异常", error);
+      setOrderFailMsg(error?.response?.data?.msg || '网络异常，预定失败，请稍后重试');
       setOrderStatus('failed');
     }
   };
@@ -83,6 +87,7 @@ if (isLoading) {
   const displayRisks = rawRisks.length > 0 ? rawRisks : ['无重大事故', '无火烧痕迹', '无泡水痕迹', '发动机/变速箱无大修'];
 
   const displayFlaws = universalParse(carData.flaws);
+  const canReserve = Number(carData.status) === 2;
 
   // 🌟 核心亮点：动态计算该车的专属定金
   const showPriceValue = parseFloat(carData.showPrice || carData.show_price || 0);
@@ -110,7 +115,9 @@ if (isLoading) {
     store: {
       name: carData.storeName || carData.store_name || 'AutoMax 旗舰中心',
       address: carData.detailAddress || carData.detail_address || '成都市高新区天府三街',
-      phone: carData.contactPhone || carData.contact_phone || '400-888-0001'
+      phone: carData.contactPhone || carData.contact_phone || '400-888-0001',
+      longitude: carData.longitude || carData.lng || null,
+      latitude: carData.latitude || carData.lat || null
     },
     condition: {
       score: carData.carScore || carData.car_score || 100,
@@ -254,9 +261,18 @@ if (isLoading) {
                       <div className="text-xs font-bold text-gray-500 mb-3 bg-gray-50 py-2 rounded-lg border border-gray-100">
                         该车源抢手，预付 <span className="text-red-500 text-sm mx-1">¥{displayDeposit}</span> 意向金即可锁定
                       </div>
-                      <button onClick={handleLockCar} className="w-full bg-blue-600 hover:bg-black text-white font-bold text-lg py-5 rounded-2xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex justify-center items-center">
-                        <CreditCard className="mr-3" size={24} /> 立即预定抢位
-                      </button>
+                      <div className="text-[11px] text-gray-500 leading-relaxed bg-gray-50 px-3 py-2 rounded-lg border border-gray-100 mb-3">
+                        锁车时效：24 小时内优先保留。到店验车不满意可申请退款（1-3 个工作日原路退回）。
+                      </div>
+                      {canReserve ? (
+                        <button onClick={handleLockCar} className="w-full bg-blue-600 hover:bg-black text-white font-bold text-lg py-5 rounded-2xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex justify-center items-center">
+                          <CreditCard className="mr-3" size={24} /> 立即预定抢位
+                        </button>
+                      ) : (
+                        <button disabled className="w-full bg-gray-200 text-gray-500 font-bold text-lg py-5 rounded-2xl flex justify-center items-center">
+                          该车当前不可预定（可能已锁单或已售）
+                        </button>
+                      )}
                     </div>
                   )}
                   {orderStatus === 'loading' && (
@@ -265,16 +281,38 @@ if (isLoading) {
                     </button>
                   )}
                   {orderStatus === 'success' && (
-                    <div className="w-full bg-green-500 text-white p-5 rounded-2xl text-center shadow-lg shadow-green-200">
-                       <CheckCircle2 className="mx-auto mb-1" size={28} />
-                       <div className="text-lg font-bold">预定成功！请尽快到店付尾款</div>
+                    <div className="w-full bg-green-500 text-white p-5 rounded-2xl shadow-lg shadow-green-200 space-y-4">
+                      <div className="text-center">
+                        <CheckCircle2 className="mx-auto mb-1" size={28} />
+                        <div className="text-lg font-bold">预定成功！下一步这样做</div>
+                      </div>
+                      <div className="bg-white/10 rounded-xl p-4 text-sm leading-relaxed">
+                        <div className="font-bold mb-2">流程指引</div>
+                        <div>1. 订单已锁定 24 小时，请尽快确认到店时间</div>
+                        <div>2. 到店验车后支付尾款并签署合同</div>
+                        <div>3. 办理过户，交易完成</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => navigate('/my-orders')}
+                          className="bg-white text-green-600 font-bold py-3 rounded-xl hover:bg-green-50 transition-colors"
+                        >
+                          查看订单进度
+                        </button>
+                        <a
+                          href={`tel:${currentCar.store.phone}`}
+                          className="bg-green-600/90 text-white font-bold py-3 rounded-xl text-center hover:bg-green-700 transition-colors"
+                        >
+                          联系顾问确认
+                        </a>
+                      </div>
                     </div>
                   )}
                   {orderStatus === 'failed' && (
                     <div className="w-full bg-red-50 text-red-600 p-5 rounded-2xl text-center border border-red-100">
                        <AlertTriangle className="mx-auto mb-1" size={28} />
-                       <div className="text-sm font-bold">预定失败，下手慢了已被抢订或网络异常</div>
-                       <button onClick={() => setOrderStatus('idle')} className="mt-2 text-xs underline">重试</button>
+                       <div className="text-sm font-bold">{orderFailMsg || '预定失败，下手慢了已被抢订或网络异常'}</div>
+                       <button onClick={() => { setOrderStatus('idle'); setOrderFailMsg(''); }} className="mt-2 text-xs underline">重试</button>
                     </div>
                   )}
                 </div>
@@ -287,7 +325,15 @@ if (isLoading) {
                   <p className="text-xs text-gray-500 mb-6">{currentCar.store.address}</p>
                   
                   <div className="h-48 w-full rounded-2xl overflow-hidden mb-6 relative">
-                    <AMapContainer address={currentCar.store.address} city={currentCar.specs.city} />
+                    <AMapContainer
+                      storeData={{
+                        longitude: currentCar.store.longitude,
+                        latitude: currentCar.store.latitude,
+                        detailAddress: currentCar.store.address
+                      }}
+                      address={currentCar.store.address}
+                      city={currentCar.specs.city}
+                    />
                     <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[9px] font-black px-3 py-1 rounded-full shadow-lg z-10 animate-pulse">
                       车辆现停放于此
                     </div>

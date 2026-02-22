@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/leads")
@@ -16,14 +17,15 @@ public class AdminLeadController {
 
     // 获取线索列表
     @GetMapping("/list")
-    public List<CarLead> getLeadList() {
-        return carLeadService.getAllLeads();
+    public Map<String, Object> getLeadList(@RequestParam(required = false) Long storeId) {
+        List<CarLead> list = carLeadService.getAllLeads(storeId);
+        return Map.of("code", 200, "success", true, "data", list);
     }
 
     // 更改线索状态
     @PutMapping("/{id}/status")
-    public String updateStatus(@PathVariable Long id, @RequestParam Integer status) {
+    public Map<String, Object> updateStatus(@PathVariable Long id, @RequestParam Integer status) {
         carLeadService.updateLeadStatus(id, status);
-        return "状态更新成功";
+        return Map.of("code", 200, "success", true, "msg", "状态更新成功");
     }
 }

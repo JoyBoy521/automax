@@ -2,6 +2,7 @@ package com.automax.mall.controller;
 
 import com.automax.mall.entity.SysUser;
 import com.automax.mall.mapper.SysUserMapper;
+import com.automax.mall.utils.UserContext;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,12 +22,23 @@ public class AdminUserController {
      * 获取后台员工列表
      */
     @GetMapping("/list")
-    public Map<String, Object> list() {
+    public Map<String, Object> list(@RequestParam(required = false) Long storeId) {
+        SysUser currentUser = UserContext.getUser();
+        if (currentUser == null) {
+            return Map.of("code", 401, "success", false, "msg", "请先登录");
+        }
         // 🌟 细节：给前端返回用户列表时，为了安全，过滤掉密码字段，并把 C端的普通买家(CUSTOMER) 排除在外
         QueryWrapper<SysUser> queryWrapper = new QueryWrapper<>();
         queryWrapper.select(SysUser.class, info -> !info.getColumn().equals("password"))
                 .ne("role", "CUSTOMER") // 排除买家
                 .orderByDesc("create_time");
+
+        if (!"ADMIN".equals(currentUser.getRole())) {
+            queryWrapper.eq("store_id", currentUser.getStoreId())
+                    .ne("role", "ADMIN");
+        } else if (storeId != null) {
+            queryWrapper.eq("store_id", storeId);
+        }
 
         List<SysUser> users = sysUserMapper.selectList(queryWrapper);
         return Map.of("code", 200, "success", true, "data", users);
@@ -37,6 +49,11 @@ public class AdminUserController {
      */
     @PostMapping("/updateRole")
     public Map<String, Object> updateRole(@RequestBody Map<String, Object> params) {
+        SysUser currentUser = UserContext.getUser();
+        if (currentUser == null) {
+            return Map.of("code", 401, "success", false, "msg", "请先登录");
+        }
+
         Long userId = Long.valueOf(params.get("userId").toString());
         String role = params.get("role").toString();
 
@@ -46,8 +63,25 @@ public class AdminUserController {
             storeId = Long.valueOf(params.get("storeId").toString());
         }
 
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            return Map.of("code", 404, "success", false, "msg", "用户不存在");
+        }
+
+        if (!canManageUser(currentUser, user)) {
+            return Map.of("code", 403, "success", false, "msg", "无权操作该员工");
+        }
+
+        if ("MANAGER".equals(currentUser.getRole())) {
+            // 店长只能调整本店一线人员
+            if (!"STAFF".equals(role)) {
+                return Map.of("code", 403, "success", false, "msg", "店长仅可设置为 STAFF");
+            }
+            storeId = currentUser.getStoreId();
+        }
+
         // 🌟 核心防御：如果是在页面上把他设为 MANAGER，执行防多店长冲突机制
-        if ("MANAGER".equals(role) && storeId != null) {
+        if ("MANAGER".equals(role) && storeId != null && "ADMIN".equals(currentUser.getRole())) {
             SysUser oldManager = sysUserMapper.selectOne(
                     new QueryWrapper<SysUser>()
                             .eq("store_id", storeId)
@@ -60,20 +94,25 @@ public class AdminUserController {
             }
         }
 
-        // 更新目标员工
-        SysUser user = sysUserMapper.selectById(userId);
-        if (user != null) {
-            user.setRole(role);
-            user.setStoreId(storeId);
-            sysUserMapper.updateById(user);
-            return Map.of("code", 200, "success", true, "msg", "权限更新成功");
-        }
-
-        return Map.of("code", 404, "success", false, "msg", "用户不存在");
+        user.setRole(role);
+        user.setStoreId(storeId);
+        sysUserMapper.updateById(user);
+        return Map.of("code", 200, "success", true, "msg", "权限更新成功");
     }
 
     @PostMapping("/save")
     public Map<String, Object> saveUser(@RequestBody SysUser user) {
+        SysUser currentUser = UserContext.getUser();
+        if (currentUser == null) {
+            return Map.of("code", 401, "success", false, "msg", "请先登录");
+        }
+
+        if ("MANAGER".equals(currentUser.getRole())) {
+            // 店长只能新增/编辑本店 STAFF
+            user.setRole("STAFF");
+            user.setStoreId(currentUser.getStoreId());
+        }
+
         // 1. 新增时的默认逻辑
         if (user.getId() == null) {
             // 校验账号是否重复
@@ -87,15 +126,18 @@ public class AdminUserController {
             }
             if (user.getRole() == null) user.setRole("STAFF");
         } else {
+            SysUser existing = sysUserMapper.selectById(user.getId());
+            if (existing == null || !canManageUser(currentUser, existing)) {
+                return Map.of("code", 403, "success", false, "msg", "无权编辑该员工");
+            }
             // 🌟 如果是编辑，且前端没有传密码，为了防止把原来密码覆盖为空，从数据库查一下老密码
             if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
-                SysUser oldData = sysUserMapper.selectById(user.getId());
-                user.setPassword(oldData.getPassword());
+                user.setPassword(existing.getPassword());
             }
         }
 
         // 2. 🌟 核心防御：如果分配为 MANAGER，执行防多店长冲突机制
-        if ("MANAGER".equals(user.getRole()) && user.getStoreId() != null) {
+        if ("MANAGER".equals(user.getRole()) && user.getStoreId() != null && "ADMIN".equals(currentUser.getRole())) {
             SysUser oldManager = sysUserMapper.selectOne(
                     new QueryWrapper<SysUser>()
                             .eq("store_id", user.getStoreId())
@@ -116,5 +158,21 @@ public class AdminUserController {
             sysUserMapper.updateById(user);
             return Map.of("code", 200, "success", true, "msg", "员工档案已更新");
         }
+    }
+
+    private boolean canManageUser(SysUser operator, SysUser target) {
+        if (operator == null || target == null) {
+            return false;
+        }
+        if ("ADMIN".equals(operator.getRole())) {
+            return true;
+        }
+        if ("MANAGER".equals(operator.getRole())) {
+            return operator.getStoreId() != null
+                    && operator.getStoreId().equals(target.getStoreId())
+                    && !"ADMIN".equals(target.getRole())
+                    && !"MANAGER".equals(target.getRole());
+        }
+        return false;
     }
 }

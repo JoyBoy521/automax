@@ -2,18 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, CheckCircle2, XCircle, Car, ShieldCheck, ChevronRight, AlertCircle, MapPin } from 'lucide-react';
 import GlobalHeader from '../components/GlobalHeader';
-import { getAdminOrderList,cancelOrder} from '../api'; 
+import { getMyOrderList, cancelOrder } from '../api';
 
 export default function MyOrders() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const parseAmount = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  const formatAmount = (value) => {
+    const num = parseAmount(value);
+    return num.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
-      // 毕设演示阶段：直接复用之前写好的查询接口，假装这就是当前用户(userId=1)的订单
-      const res = await getAdminOrderList();
+      const res = await getMyOrderList();
       if (res.data && res.data.success) {
         setOrders(res.data.data || []);
       }
@@ -59,6 +68,24 @@ const handleCancelOrder = async (orderId) => {
     }
   };
 
+  const getProgressMeta = (status) => {
+    switch (status) {
+      case 1:
+        return { progress: 25, todo: '请在 24 小时内确认到店验车时间，并准备尾款支付。' };
+      case 2:
+        return { progress: 55, todo: '尾款已支付，等待门店提交过户材料。' };
+      case 3:
+        return { progress: 80, todo: '过户处理中，请保持电话畅通，等待提车通知。' };
+      case 4:
+        return { progress: 100, todo: '交易已完成，建议在「服务保障」中查看售后权益。' };
+      case 5:
+      case 6:
+        return { progress: 100, todo: '订单已取消，退款通常会在 1-3 个工作日内到账。' };
+      default:
+        return { progress: 0, todo: '订单状态同步中，请稍后刷新重试。' };
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50/50 font-sans">
       {/* 复用你已经写好的全局导航栏 */}
@@ -78,6 +105,13 @@ const handleCancelOrder = async (orderId) => {
           ) : orders.length > 0 ? (
             orders.map(order => {
               const ui = getStatusUI(order.status);
+              const progressMeta = getProgressMeta(order.status);
+              const carName = order.carName || `车辆ID ${order.skuId}`;
+              const carBrand = order.carBrand || 'AutoMax';
+              const orderNo = order.displayOrderNo || order.orderNo || `AMX-${String(order.id || '').padStart(6, '0')}`;
+              const paidAmount = parseAmount(order.payAmount ?? order.amount);
+              const totalAmount = parseAmount(order.totalAmount);
+              const remainingAmount = Math.max(totalAmount - paidAmount, 0);
               return (
                 <div key={order.id} className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                   
@@ -87,7 +121,7 @@ const handleCancelOrder = async (orderId) => {
                       <span className={`inline-flex items-center px-3 py-1.5 rounded-xl text-sm font-bold border ${ui.color}`}>
                         {ui.icon} {ui.text}
                       </span>
-                      <span className="text-xs text-gray-400 font-mono">订单号: {order.orderNo || `AUTO-${order.id}M9X`}</span>
+                      <span className="text-xs text-gray-400 font-mono">订单号: {orderNo}</span>
                     </div>
                     <div className="text-xs text-gray-400 font-medium flex items-center">
                       下单时间：{order.createTime || '刚刚'}
@@ -96,29 +130,64 @@ const handleCancelOrder = async (orderId) => {
 
                   {/* 卡片主体：车辆信息与金额 */}
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900 mb-1">
-                        预约车辆 ID: {order.skuId}
-                      </h3>
-                      <p className="text-sm text-gray-500 flex items-center mt-2">
-                        <MapPin size={14} className="mr-1 text-gray-400" />
-                        系统已锁定该车源，请随时保持手机畅通，销售顾问将尽快联系您。
-                      </p>
+                    <div className="flex-1 flex items-center gap-4">
+                      <div className="w-28 h-20 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0">
+                        {order.carCover ? (
+                          <img src={order.carCover} alt={carName} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">暂无图片</div>
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">
+                          {carBrand} · {carName}
+                        </h3>
+                        <p className="text-sm text-gray-500 flex items-center mt-2">
+                          <MapPin size={14} className="mr-1 text-gray-400" />
+                          该车已锁定，销售顾问将联系您确认到店安排。
+                        </p>
+                      </div>
                     </div>
                     
                     <div className="text-left sm:text-right">
                       <p className="text-xs text-gray-500 mb-1">已付意向定金</p>
                       <div className="flex items-baseline text-red-600 justify-start sm:justify-end">
                         <span className="text-lg font-bold mr-1">¥</span>
-                        <span className="text-3xl font-black">{order.amount}</span>
+                        <span className="text-3xl font-black">{formatAmount(paidAmount)}</span>
                       </div>
+                      <p className="text-xs text-gray-500 mt-2">车辆总价：¥{totalAmount > 0 ? formatAmount(totalAmount) : '待确认'}</p>
+                      <p className="text-xs text-blue-600 font-semibold mt-1">待付尾款：¥{totalAmount > 0 ? formatAmount(remainingAmount) : '待确认'}</p>
                     </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <div className="flex justify-between items-center mb-2 text-xs text-gray-500 font-medium">
+                      <span>订单进度</span>
+                      <span>{progressMeta.progress}%</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+                      <div
+                        className="h-full bg-blue-600 transition-all duration-500"
+                        style={{ width: `${progressMeta.progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 p-4 rounded-2xl border border-blue-100 bg-blue-50/60">
+                    <div className="text-xs text-blue-500 font-bold mb-1">当前待办</div>
+                    <div className="text-sm text-gray-700 font-medium leading-relaxed">{progressMeta.todo}</div>
                   </div>
 
                   {/* 卡片底部：操作按钮 */}
                   <div className="mt-6 pt-6 border-t border-gray-50 flex flex-wrap gap-3 justify-end">
                     <button 
-                      onClick={() => navigate(`/car/${order.skuId}`)}
+                      onClick={() => navigate(`/my-orders/${order.id}`)}
+                      className="px-5 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 transition-colors border border-blue-600"
+                    >
+                      查看订单详情
+                    </button>
+                    <button 
+                      onClick={() => navigate(`/car/${order.carId || order.skuId}`)}
                       className="px-5 py-2.5 bg-gray-50 text-gray-700 font-bold text-sm rounded-xl hover:bg-gray-100 transition-colors border border-gray-200"
                     >
                       查看车辆详情

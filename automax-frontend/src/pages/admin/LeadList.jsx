@@ -5,7 +5,7 @@ import {
   ClipboardList, ArrowRight, CheckCircle2, Ban,
   Search, Filter, Sparkles, PlusCircle, RotateCcw
 } from 'lucide-react';
-import { getLeadList, updateLeadStatus } from '../../api';
+import { getLeadList, getStoreList, updateLeadStatus } from '../../api';
 
 const STATUS_META = {
   0: {
@@ -39,7 +39,10 @@ const FILTERS = [
 ];
 
 export default function LeadList() {
+  const role = localStorage.getItem('role');
   const [leads, setLeads] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [storeFilter, setStoreFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [filter, setFilter] = useState('all');
@@ -48,12 +51,22 @@ export default function LeadList() {
 
   useEffect(() => {
     fetchLeads();
-  }, []);
+  }, [storeFilter]);
+
+  useEffect(() => {
+    if (role !== 'ADMIN') return;
+    getStoreList().then((res) => {
+      if (res.data?.success) {
+        setStores(res.data.data || []);
+      }
+    });
+  }, [role]);
 
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      const res = await getLeadList();
+      const params = role === 'ADMIN' && storeFilter ? { storeId: storeFilter } : undefined;
+      const res = await getLeadList(params);
       // 假设后端返回的是数组，如果带了 code/data 结构请自行调整
       setLeads(res.data.success ? res.data.data : (res.data || []));
     } catch (error) {
@@ -130,6 +143,20 @@ export default function LeadList() {
             <RefreshCcw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} /> 刷新商机
           </button>
         </div>
+        {role === 'ADMIN' && (
+          <div className="mt-4">
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-white/20 bg-white/10 text-sm font-semibold text-white"
+            >
+              <option value="">全部门店</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id} className="text-gray-900">{s.storeName}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">

@@ -5,10 +5,12 @@ import {
 } from 'lucide-react';
 import { useLocation,useNavigate, useParams } from 'react-router-dom';
 // 🌟 引入新的 getSpuList 接口 (需在 api/index.js 定义)
-import { addCar, getCarDetail, getCarList } from '../../api'; 
+import { addCar, getCarDetail, getCarList, getStoreList } from '../../api';
 
 
 export default function CarForm() {
+  const role = localStorage.getItem('role');
+  const isAdmin = role === 'ADMIN';
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = !!id;
@@ -19,6 +21,7 @@ export default function CarForm() {
   const [customSpuName, setCustomSpuName] = useState('');
   // 🌟 新增：数据库中的车型列表
   const [spuList, setSpuList] = useState([]);
+  const [stores, setStores] = useState([]);
 
   // 1. 基础状态 (补全 brand)
   const [formData, setFormData] = useState({
@@ -58,8 +61,20 @@ export default function CarForm() {
     });   
   }, []);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    getStoreList().then((res) => {
+      if (res.data?.success) {
+        setStores(res.data.data || []);
+      }
+    });
+  }, [isAdmin]);
+
   // 🌟 深度回显逻辑
   useEffect(() => {
+    if (!isEdit && location.state?.preferredStoreId) {
+      setFormData((prev) => ({ ...prev, storeId: Number(location.state.preferredStoreId) }));
+    }
     if (isEdit) {
       const fetchData = async () => {
         try {
@@ -260,8 +275,22 @@ export default function CarForm() {
               </div>
 
               <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest">里程 (万km)</label>
-                  <input required type="number" step="0.01" className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none" value={formData.mileage} onChange={e => setFormData({...formData, mileage: e.target.value})} />
+                {isAdmin && (
+                  <>
+                    <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest">所属门店</label>
+                    <select
+                      className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none border border-transparent focus:border-blue-500 mb-4"
+                      value={formData.storeId}
+                      onChange={(e) => setFormData({ ...formData, storeId: Number(e.target.value) })}
+                    >
+                      {(stores || []).map((s) => (
+                        <option key={s.id} value={s.id}>{s.storeName}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+                <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest">里程 (万km)</label>
+                <input required type="number" step="0.01" className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none" value={formData.mileage} onChange={e => setFormData({...formData, mileage: e.target.value})} />
               </div>
               <div>
                   <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest">标价 (万元)</label>

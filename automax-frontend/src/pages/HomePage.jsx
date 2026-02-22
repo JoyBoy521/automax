@@ -4,6 +4,7 @@ import useScrollReveal from '../hooks/useScrollReveal';
 import { getCarList } from '../api';
 import { useNavigate } from 'react-router-dom';
 import GlobalHeader from '../components/GlobalHeader';
+import { detectCityByIP, normalizeCityName } from '../utils/ipLocation';
 
 import { 
   MapPin, RefreshCw, 
@@ -25,7 +26,7 @@ const SkeletonCard = () => (
   </div>
 );
 
-const InventorySection = ({ cars, isLoading }) => {
+const InventorySection = ({ cars, isLoading, userCity }) => {
   const [ref, isVisible] = useScrollReveal(0.15);
   const navigate = useNavigate();
 
@@ -64,6 +65,11 @@ const InventorySection = ({ cars, isLoading }) => {
             <p className="text-gray-500 mt-2 text-lg">
               {isLoading ? "正在为您搜罗全国优质车源..." : `为您精选 ${processedCars.length} 台本地好车`}
             </p>
+            {!isLoading && userCity && (
+              <p className="text-xs mt-2 inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-semibold">
+                已按 IP 定位到 {userCity}，优先推荐附近门店车源
+              </p>
+            )}
           </div>
         </div>
 
@@ -194,28 +200,57 @@ const GlobalFooter = () => (
 export default function HomePage() {
   const [carList, setCarList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState({ city: '', center: null });
 
   useEffect(() => {
-    getCarList()
-      .then(res => {
-        if (res.data && res.data.success) {
-          setCarList(res.data.data || []); 
-        }
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error("首页数据加载失败:", err);
-        setCarList([]); 
-        setLoading(false);
-      });
+    let mounted = true;
+    Promise.allSettled([getCarList(), detectCityByIP()]).then(([carsRes, cityRes]) => {
+      if (!mounted) return;
+      if (carsRes.status === 'fulfilled' && carsRes.value?.data?.success) {
+        setCarList(carsRes.value.data.data || []);
+      } else {
+        console.error("首页数据加载失败:", carsRes.reason);
+        setCarList([]);
+      }
+      if (cityRes.status === 'fulfilled') {
+        setUserLocation(cityRes.value || { city: '', center: null });
+      }
+      setLoading(false);
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
+
+  const rankedCars = useMemo(() => {
+    const city = normalizeCityName(userLocation.city);
+    if (!city) return carList;
+    const center = userLocation.center;
+    const distanceScore = (car) => {
+      if (!center) return Number.MAX_SAFE_INTEGER;
+      const lng = Number(car.longitude);
+      const lat = Number(car.latitude);
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) return Number.MAX_SAFE_INTEGER;
+      const dx = lng - center.lng;
+      const dy = lat - center.lat;
+      return dx * dx + dy * dy;
+    };
+    const score = (car) => {
+      const cityName = normalizeCityName(car.city);
+      const storeName = String(car.storeName || '');
+      if (cityName && cityName === city) return 0 + distanceScore(car);
+      if (storeName.includes(city)) return 1 + distanceScore(car);
+      return 10 + distanceScore(car);
+    };
+    return [...carList].sort((a, b) => score(a) - score(b));
+  }, [carList, userLocation]);
 
   return (
     <div className="min-h-screen w-full font-sans text-gray-900 bg-black overflow-x-hidden">
       <GlobalHeader transparentAtTop={true}/>
       <HeroSection />
       {/* 🌟 只有不加载时才显示 FeatureSection，减少首屏渲染压力 */}
-      <InventorySection cars={carList} isLoading={loading} />
+      <InventorySection cars={rankedCars} isLoading={loading} userCity={userLocation.city} />
       {!loading && <FeatureSection />}
       <GlobalFooter />
     </div>

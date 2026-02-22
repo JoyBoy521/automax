@@ -1,14 +1,18 @@
 import React, { useEffect, useRef } from 'react';
 import AMapLoader from '@amap/amap-jsapi-loader';
 
-export default function AMapContainer({ storeData }) {
+export default function AMapContainer({ storeData, address, city }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
 
   useEffect(() => {
-    // 🌟 核心：直接使用数据库里的经纬度
-    const { longitude, latitude, detailAddress } = storeData;
-    if (!longitude || !latitude || !mapRef.current) return;
+    const safeStoreData = storeData || {};
+    const longitude = Number.parseFloat(safeStoreData.longitude ?? safeStoreData.lng);
+    const latitude = Number.parseFloat(safeStoreData.latitude ?? safeStoreData.lat);
+    const detailAddress = safeStoreData.detailAddress || address || city || 'AutoMax 门店';
+
+    // 坐标缺失时不初始化地图，避免页面崩溃
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || !mapRef.current) return;
 
     AMapLoader.load({
       key: "38334760782f6e9b5f7fca11f6d061d2", 
@@ -35,8 +39,13 @@ export default function AMapContainer({ storeData }) {
       mapInstance.current = map;
     }).catch(e => console.error("地图加载失败:", e));
 
-    return () => mapInstance.current?.destroy();
-  }, [storeData]);
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.destroy();
+        mapInstance.current = null;
+      }
+    };
+  }, [storeData, address, city]);
 
   return <div ref={mapRef} className="w-full h-full min-h-[200px] rounded-2xl" />;
 }

@@ -26,6 +26,7 @@ public class CarController {
     @GetMapping("/list")
     public Map<String, Object> getCarList(
             @RequestParam(required = false) String brand,
+            @RequestParam(required = false) String city,
             @RequestParam(required = false) Double minPrice,
             @RequestParam(required = false) Double maxPrice,
             @RequestParam(required = false) String orderField
@@ -46,6 +47,10 @@ public class CarController {
                     boolean brandMatch = car.getBrand() != null && car.getBrand().contains(brand);
                     boolean nameMatch = car.getSpuName() != null && car.getSpuName().contains(brand);
                     return brandMatch || nameMatch;
+                })
+                .filter(car -> {
+                    if (city == null || city.isEmpty()) return true;
+                    return car.getCity() != null && car.getCity().contains(city);
                 })
                 .filter(car -> {
                     // 🌟 修复：使用 compareTo 进行 BigDecimal 比较

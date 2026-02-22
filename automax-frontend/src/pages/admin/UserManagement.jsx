@@ -5,8 +5,11 @@ import { getAdminUserList, getStoreList, saveAdminUser, updateUserRole } from '.
 import { toast } from 'react-toastify';
 
 export default function UserManagement() {
+  const role = localStorage.getItem('role');
+  const isAdmin = role === 'ADMIN';
   const [users, setUsers] = useState([]);
   const [stores, setStores] = useState([]);
+  const [storeFilter, setStoreFilter] = useState('');
   
   // 抽屉与表单状态
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -18,7 +21,7 @@ export default function UserManagement() {
   const storeDropdownRef = useRef(null);
 
   // 初始化加载数据
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [storeFilter]);
 
   // 🌟 核心监听：点击下拉菜单外部区域时自动收起，代替原本会阻挡滚动的透明遮罩
   useEffect(() => {
@@ -33,9 +36,14 @@ export default function UserManagement() {
 
   const fetchData = async () => {
     try {
-      const [uRes, sRes] = await Promise.all([getAdminUserList(), getStoreList()]);
+      const userParams = isAdmin && storeFilter ? { storeId: storeFilter } : undefined;
+      const requests = [getAdminUserList(userParams)];
+      if (isAdmin) {
+        requests.push(getStoreList());
+      }
+      const [uRes, sRes] = await Promise.all(requests);
       if (uRes.data.success) setUsers(uRes.data.data);
-      if (sRes.data.success) setStores(sRes.data.data);
+      if (sRes?.data?.success) setStores(sRes.data.data);
     } catch (error) { toast.error("数据加载失败"); }
   };
 
@@ -57,7 +65,7 @@ export default function UserManagement() {
     if (user) {
       setFormData({ ...user, password: '' }); 
     } else {
-      setFormData({ username: '', password: '', phone: '', role: 'STAFF', storeId: '' });
+      setFormData({ username: '', password: '', phone: '', role: 'STAFF', storeId: isAdmin ? '' : (stores[0]?.id || '') });
     }
     setIsDrawerOpen(true);
   };
@@ -88,9 +96,23 @@ export default function UserManagement() {
           <h1 className="text-2xl font-black text-gray-900">团队人员与权限管理</h1>
           <p className="text-sm text-gray-500 mt-1 font-medium">配置内部员工的系统角色与所属门店</p>
         </div>
-        <button onClick={() => openDrawer()} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold flex items-center shadow-lg hover:bg-black transition-all">
-          <UserPlus size={18} className="mr-2" /> 录入新员工
-        </button>
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700"
+            >
+              <option value="">全部门店</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>{s.storeName}</option>
+              ))}
+            </select>
+          )}
+          <button onClick={() => openDrawer()} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold flex items-center shadow-lg hover:bg-black transition-all">
+            <UserPlus size={18} className="mr-2" /> 录入新员工
+          </button>
+        </div>
       </div>
 
       {/* 顶部数据看板 */}
@@ -230,14 +252,16 @@ export default function UserManagement() {
                     <p className="text-[10px] text-gray-400 mt-1">处理线索，录入车辆</p>
                   </button>
                   
-                  <button onClick={() => setFormData({...formData, role: 'MANAGER'})}
-                          className={`p-4 rounded-2xl border-2 text-left transition-all ${formData.role === 'MANAGER' ? 'border-purple-500 bg-purple-50 shadow-md shadow-purple-500/10' : 'border-gray-100 bg-white hover:border-purple-200'}`}>
-                    <ShieldCheck size={20} className={formData.role === 'MANAGER' ? 'text-purple-500' : 'text-gray-400'}/>
-                    <p className={`font-black mt-2 ${formData.role === 'MANAGER' ? 'text-purple-900' : 'text-gray-600'}`}>门店店长</p>
-                    <p className="text-[10px] text-gray-400 mt-1">最高权限，处理审批</p>
-                  </button>
+                  {isAdmin && (
+                    <button onClick={() => setFormData({...formData, role: 'MANAGER'})}
+                            className={`p-4 rounded-2xl border-2 text-left transition-all ${formData.role === 'MANAGER' ? 'border-purple-500 bg-purple-50 shadow-md shadow-purple-500/10' : 'border-gray-100 bg-white hover:border-purple-200'}`}>
+                      <ShieldCheck size={20} className={formData.role === 'MANAGER' ? 'text-purple-500' : 'text-gray-400'}/>
+                      <p className={`font-black mt-2 ${formData.role === 'MANAGER' ? 'text-purple-900' : 'text-gray-600'}`}>门店店长</p>
+                      <p className="text-[10px] text-gray-400 mt-1">最高权限，处理审批</p>
+                    </button>
+                  )}
                 </div>
-                {formData.role === 'MANAGER' && <p className="text-[10px] text-purple-500 mt-2 font-bold bg-purple-50 p-2 rounded-lg">注意：系统将自动顶替该门店的原店长</p>}
+                {isAdmin && formData.role === 'MANAGER' && <p className="text-[10px] text-purple-500 mt-2 font-bold bg-purple-50 p-2 rounded-lg">注意：系统将自动顶替该门店的原店长</p>}
               </div>
 
               {/* 🌟 定制化下拉框：自带动态留白 pb-56 防截断，且移除了全屏遮罩层 */}
@@ -249,7 +273,7 @@ export default function UserManagement() {
                 
                 <div 
                   className={`w-full px-5 py-4 border-2 rounded-2xl cursor-pointer flex justify-between items-center transition-all ${storeDropdownOpen ? 'border-blue-500 bg-white' : 'border-gray-50 bg-gray-50 hover:bg-gray-100'}`}
-                  onClick={() => setStoreDropdownOpen(!storeDropdownOpen)}
+                  onClick={() => isAdmin && setStoreDropdownOpen(!storeDropdownOpen)}
                 >
                   <div className="flex items-center space-x-3">
                     <div className={`p-2 rounded-xl transition-colors ${formData.storeId ? 'bg-blue-100 text-blue-600' : 'bg-gray-200 text-gray-400'}`}>
@@ -265,7 +289,7 @@ export default function UserManagement() {
                 </div>
 
                 {/* 展开的精美列表 */}
-                {storeDropdownOpen && (
+                {isAdmin && storeDropdownOpen && (
                   <div className="absolute z-20 w-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto animate-in slide-in-from-top-2 fade-in">
                     
                     <div 

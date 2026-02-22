@@ -3,7 +3,9 @@ package com.automax.mall.service;
 import com.automax.mall.dto.CarAddDTO;
 import com.automax.mall.entity.CarLead;
 import com.automax.mall.entity.CarSku;
+import com.automax.mall.entity.SysUser;
 import com.automax.mall.mapper.CarSkuMapper;
+import com.automax.mall.utils.UserContext;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +27,17 @@ public class AdminCarService {
     private ObjectMapper objectMapper;
     @Autowired
     private com.automax.mall.mapper.CarLeadMapper carLeadMapper;
+
+    public List<CarSku> listCars(SysUser currentUser, Long storeId) {
+        QueryWrapper<CarSku> wrapper = new QueryWrapper<>();
+        if (currentUser != null && !"ADMIN".equals(currentUser.getRole())) {
+            wrapper.eq("store_id", currentUser.getStoreId());
+        } else if (storeId != null) {
+            wrapper.eq("store_id", storeId);
+        }
+        wrapper.orderByDesc("create_time");
+        return carSkuMapper.selectList(wrapper);
+    }
     /**
      * 🌟 亮点：动态获取数据库车型列表
      * 解决你提到的“车型全称是静态”的问题
@@ -41,6 +54,7 @@ public class AdminCarService {
 
     @Transactional(rollbackFor = Exception.class)
     public void addCar(CarAddDTO dto) throws JsonProcessingException {
+        SysUser currentUser = UserContext.getUser();
         CarSku car = new CarSku();
 
         // 1. 设置 ID (用于编辑模式)
@@ -55,7 +69,11 @@ public class AdminCarService {
 
         car.setVinCode(dto.getVinCode());
         car.setSpuId(dto.getSpuId());
-        car.setStoreId(dto.getStoreId() != null ? dto.getStoreId() : 1L);
+        if (currentUser != null && !"ADMIN".equals(currentUser.getRole())) {
+            car.setStoreId(currentUser.getStoreId());
+        } else {
+            car.setStoreId(dto.getStoreId() != null ? dto.getStoreId() : 1L);
+        }
         car.setMileage(dto.getMileage());
         car.setShowPrice(dto.getShowPrice());
         car.setStatus(2); // 默认在售

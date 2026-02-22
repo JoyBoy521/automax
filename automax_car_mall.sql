@@ -194,6 +194,9 @@ CREATE TABLE `trade_order`  (
   `expire_time` datetime NULL DEFAULT NULL COMMENT '支付倒计时截止时间',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
   `total_amount` decimal(10, 2) NULL DEFAULT NULL COMMENT '车辆成交总价',
+  `appointment_time` datetime NULL DEFAULT NULL COMMENT '用户预约到店时间',
+  `appointment_remark` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '预约备注',
+  `appointment_update_time` datetime NULL DEFAULT NULL COMMENT '预约信息更新时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_order_no`(`order_no`) USING BTREE,
   INDEX `idx_user_time`(`user_id`, `create_time`) USING BTREE COMMENT '用户订单查询符合索引'
@@ -202,10 +205,10 @@ CREATE TABLE `trade_order`  (
 -- ----------------------------
 -- Records of trade_order
 -- ----------------------------
-INSERT INTO `trade_order` VALUES (1, 'ORD202602210001', 1001, 2, 1, 0.05, 6, '2026-02-24 12:00:00', '2026-02-21 23:05:16', NULL);
-INSERT INTO `trade_order` VALUES (2, 'ORD202602200022', 1002, 3, 3, 15.80, 3, NULL, '2026-02-21 23:05:16', NULL);
-INSERT INTO `trade_order` VALUES (3, 'AUTO-380A8851', 1, 5, 2, 500.00, 6, NULL, '2026-02-22 00:24:40', NULL);
-INSERT INTO `trade_order` VALUES (4, 'AUTO-A9B820CA', 1, 6, 1, 500.00, 6, NULL, '2026-02-22 01:04:06', NULL);
-INSERT INTO `trade_order` VALUES (5, 'AUTO-827132C6', 1, 1, 1, 500.00, 6, NULL, '2026-02-22 13:38:25', NULL);
+INSERT INTO `trade_order` VALUES (1, 'ORD202602210001', 1001, 2, 1, 0.05, 6, '2026-02-24 12:00:00', '2026-02-21 23:05:16', NULL, NULL, NULL, NULL);
+INSERT INTO `trade_order` VALUES (2, 'ORD202602200022', 1002, 3, 3, 15.80, 3, NULL, '2026-02-21 23:05:16', NULL, NULL, NULL, NULL);
+INSERT INTO `trade_order` VALUES (3, 'AUTO-380A8851', 1, 5, 2, 500.00, 6, NULL, '2026-02-22 00:24:40', NULL, NULL, NULL, NULL);
+INSERT INTO `trade_order` VALUES (4, 'AUTO-A9B820CA', 1, 6, 1, 500.00, 6, NULL, '2026-02-22 01:04:06', NULL, NULL, NULL, NULL);
+INSERT INTO `trade_order` VALUES (5, 'AUTO-827132C6', 1, 1, 1, 500.00, 6, NULL, '2026-02-22 13:38:25', NULL, NULL, NULL, NULL);
 
 SET FOREIGN_KEY_CHECKS = 1;

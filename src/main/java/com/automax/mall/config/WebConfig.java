@@ -21,8 +21,11 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/**") // 拦截所有 API 请求
                 .excludePathPatterns(
                         "/api/auth/login",
+                        "/api/auth/register",
                         "/api/user/register",
                         "/api/ws/**",           // 🌟 放行 WebSocket
+                        "/api/leads/submit",    // C 端提交卖车线索无需登录
+                        "/api/cars/spu/list",
                         "/api/admin/cars/spu/list", // 🌟 放行 SPU 列表
                         "/api/cars/list",       // 🌟 核心：放行 C 端列表
                         "/api/cars/detail/**"    // 🌟 核心：放行 C 端详情

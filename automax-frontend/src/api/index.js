@@ -33,16 +33,21 @@ api.interceptors.response.use(response => {
 
 // 🌟 核心修复：将所有的 request 替换为 api
 export const login = (data) => api.post('/auth/login', data);
+export const register = (data) => api.post('/auth/register', data);
 export const getCarDetail = (id) => api.get(`/cars/detail/${id}`);
 export const getCarList = (params) => api.get('/cars/list', { params });
 export const createOrder = (data) => api.post('/orders/lock', data);
 export const addCar = (data) => api.post('/admin/cars/add', data);
-export const getAdminOrderList = () => api.get(`/orders/admin/list`);
+export const getAdminCarList = (params) => api.get('/admin/cars/list', { params });
+export const getAdminOrderList = (params) => api.get(`/orders/admin/list`, { params });
+export const getMyOrderList = () => api.get(`/orders/my/list`);
+export const getMyOrderDetail = (id) => api.get(`/orders/my/${id}`);
+export const saveMyAppointment = (id, data) => api.put(`/orders/my/${id}/appointment`, data);
 export const updateOrderStatus = (id, status) => api.put(`/orders/admin/${id}/status?status=${status}`);
 export const cancelOrder = (id) => api.put(`/orders/cancel/${id}`);
 export const getSpuList = () => api.get('/cars/spu/list');
 export const submitSellLead = (data) => api.post('/leads/submit', data);
-export const getLeadList = () => api.get('/admin/leads/list');
+export const getLeadList = (params) => api.get('/admin/leads/list', { params });
 export const updateLeadStatus = (id, status) => api.put(`/admin/leads/${id}/status?status=${status}`);
 
 // 🌟 这里之前报错的地方
@@ -50,12 +55,12 @@ export const getStoreList = () => api.get('/admin/stores/list');
 export const saveStore = (data) => api.post('/admin/stores/save', data);
 export const deleteStore = (id) => api.delete(`/admin/stores/${id}`);
 
-export const getAdminUserList = () => api.get('/admin/users/list');
+export const getAdminUserList = (params) => api.get('/admin/users/list', { params });
 export const updateUserRole = (data) => api.post('/admin/users/updateRole', data);
 
 export const getCandidateManagers = () => api.get('/admin/stores/candidates');
 export const bindStoreManager = (data) => api.post('/admin/stores/bind-manager', data);
 export const saveAdminUser = (data) => api.post('/admin/users/save', data);
-export const getDashboardStats = () => api.get('/admin/dashboard/stats');
+export const getDashboardStats = (params) => api.get('/admin/dashboard/stats', { params });
 
 export default api;

@@ -8,6 +8,7 @@ const HeroSection = () => {
   const [activeTab, setActiveTab] = useState('buy');
   const [brand, setBrand] = useState('');
   const [priceRange, setPriceRange] = useState('');
+  const [city, setCity] = useState('');
   const [keyword, setKeyword] = useState('');
   const navigate = useNavigate();
 
@@ -15,7 +16,9 @@ const HeroSection = () => {
     const params = new URLSearchParams();
     if (brand) params.set('brand', brand);
     if (priceRange) params.set('price', priceRange);
+    if (city) params.set('city', city);
     if (keyword.trim()) params.set('q', keyword.trim());
+    if (city) localStorage.setItem('preferred_city', city);
     navigate(`/search-cars?${params.toString()}`);
   };
   
@@ -73,7 +76,7 @@ const HeroSection = () => {
 
             {activeTab === 'buy' && (
                <div className="p-2 animate-in fade-in duration-300">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                   <div className="relative group">
                     <select value={brand} onChange={(e) => setBrand(e.target.value)} className="w-full h-12 appearance-none bg-black/55 text-white border border-white/15 rounded-2xl px-4 pr-10 text-sm outline-none transition-all group-hover:border-white/30 focus:border-yellow-400/60">
                       <option value="">全部品牌</option>
@@ -95,6 +98,14 @@ const HeroSection = () => {
                     </select>
                     <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
+                  <div className="relative group">
+                    <input
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      placeholder="所在城市（如：成都市）"
+                      className="w-full h-12 bg-black/55 text-white border border-white/15 rounded-2xl px-4 text-sm outline-none transition-all group-hover:border-white/30 focus:border-yellow-400/60 placeholder-gray-500"
+                    />
+                  </div>
               </div>
                 <div className="flex items-stretch gap-2 sm:gap-0">
                   <div className="flex-1 min-w-0 flex items-center bg-black/55 rounded-2xl sm:rounded-r-none border border-white/15 focus-within:border-yellow-400/60 transition-colors">

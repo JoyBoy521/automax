@@ -1,30 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit3, Trash2, ExternalLink,Clock} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getCarList } from '../../api'; 
+import { getAdminCarList, getStoreList } from '../../api';
 
 
 export default function CarList() {
   const navigate = useNavigate();
-  // 🌟 修复点 1：初始值务必给一个空数组 []，防止第一遍渲染时报错
+  const role = localStorage.getItem('role');
   const [cars, setCars] = useState([]);
+  const [stores, setStores] = useState([]);
+  const [storeFilter, setStoreFilter] = useState('');
+
+  const fetchCars = async () => {
+    try {
+      const params = role === 'ADMIN' && storeFilter ? { storeId: storeFilter } : undefined;
+      const res = await getAdminCarList(params);
+      if (res.data && res.data.success) {
+        setCars(res.data.data || []);
+      }
+    } catch (error) {
+      console.error("获取车辆列表失败:", error);
+      setCars([]);
+    }
+  };
 
   useEffect(() => {
-    const fetchCars = async () => {
-      try {
-        const res = await getCarList();
-        // 🌟 修复点 2：这里要根据你的后端结构取值
-        // 你的后端返回结构是 res.data.data 才是真正的数组
-        if (res.data && res.data.success) {
-          setCars(res.data.data || []); 
-        }
-      } catch (error) {
-        console.error("获取车辆列表失败:", error);
-        setCars([]); // 出错时也给个空数组，保证页面不崩
-      }
-    };
     fetchCars();
-  }, []);
+  }, [storeFilter]);
+
+  useEffect(() => {
+    if (role !== 'ADMIN') return;
+    getStoreList().then((res) => {
+      if (res.data?.success) {
+        setStores(res.data.data || []);
+      }
+    });
+  }, [role]);
       const renderAgingTag = (createTime) => {
           if (!createTime) {
             return <span className="px-3 py-1 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold">未知</span>;
@@ -46,12 +57,26 @@ export default function CarList() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">车辆库存管理</h1>
-        <button 
-          onClick={() => navigate('/admin/add')}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center shadow-lg"
-        >
-          <Plus size={20} className="mr-2"/> 新增上架车辆
-        </button>
+        <div className="flex items-center gap-3">
+          {role === 'ADMIN' && (
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700"
+            >
+              <option value="">全部门店</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>{s.storeName}</option>
+              ))}
+            </select>
+          )}
+          <button 
+            onClick={() => navigate('/admin/add', { state: { preferredStoreId: storeFilter || '' } })}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold flex items-center shadow-lg"
+          >
+            <Plus size={20} className="mr-2"/> 新增上架车辆
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">

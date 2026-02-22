@@ -2,27 +2,55 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, Users, CarFront, AlertTriangle, 
-  DollarSign, Activity, Package, Bell, ChevronRight, CreditCard, Clock, Loader2
+  DollarSign, Activity, Package, Bell, ChevronRight, CreditCard, Clock, Loader2, Trophy
 } from 'lucide-react';
 import { 
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { getDashboardStats } from '../../api';
 
 const COLORS = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
+const LINE_COLORS = ['#2563eb', '#0f766e', '#dc2626', '#7c3aed', '#ea580c', '#0891b2'];
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const role = localStorage.getItem('role');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [storeId, setStoreId] = useState('');
+  const [metric, setMetric] = useState('revenue');
+  const [rankBy, setRankBy] = useState('revenue');
+  const [rankOrder, setRankOrder] = useState('desc');
+
+  const fetchStats = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const params = {};
+      if (role === 'ADMIN' && storeId) params.storeId = storeId;
+      params.metric = metric;
+      const res = await getDashboardStats(params);
+      if (res.data?.success) {
+        setData(res.data.data);
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    getDashboardStats().then(res => {
-      if(res.data.success) setData(res.data.data);
-      setLoading(false);
-    });
-  }, []);
+    fetchStats(false);
+
+    // 自动轮询，避免管理员不刷新看不到新任务
+    const timer = setInterval(() => fetchStats(true), 15000);
+    const onNotice = () => fetchStats(true);
+    window.addEventListener('admin:notice', onNotice);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('admin:notice', onNotice);
+    };
+  }, [storeId, metric]);
 
   if (loading) return (
     <div className="h-full flex flex-col items-center justify-center space-y-4">
@@ -31,7 +59,37 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const { stats, reminders = [], trendData = [], brandData = [], inventoryAgeData = [] } = data || {};
+  const { stats, reminders = [], trendData = [], brandData = [], inventoryAgeData = [], storeRanking = [], storeOptions = [], availableMetrics = [], scope = {}, trendMode = 'single', trendStores = [], selectedMetric = 'revenue' } = data || {};
+  const isMultiTrend = trendMode === 'multi' && trendStores.length > 0;
+  const sortedRanking = [...(storeRanking || [])].sort((a, b) => {
+    const av = Number(a?.[rankBy] || 0);
+    const bv = Number(b?.[rankBy] || 0);
+    return rankOrder === 'desc' ? bv - av : av - bv;
+  });
+  const rankingTop = sortedRanking.slice(0, 5);
+  const maxRevenue = Math.max(...rankingTop.map((r) => Number(r.revenue || 0)), 1);
+  const maxOrders = Math.max(...rankingTop.map((r) => Number(r.orderCount || 0)), 1);
+  const maxLeads = Math.max(...rankingTop.map((r) => Number(r.leadCount || 0)), 1);
+  const rankReason = (row) => {
+    const rv = Number(row.revenue || 0) / maxRevenue;
+    const ov = Number(row.orderCount || 0) / maxOrders;
+    const lv = Number(row.leadCount || 0) / maxLeads;
+    if (rv >= ov && rv >= lv) return '营收领先';
+    if (ov >= rv && ov >= lv) return '订单领先';
+    return '收车量领先';
+  };
+  const handleRankSort = (key) => {
+    if (rankBy === key) {
+      setRankOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+      return;
+    }
+    setRankBy(key);
+    setRankOrder('desc');
+  };
+  const sortArrow = (key) => {
+    if (rankBy !== key) return <span className="text-gray-300 ml-1">↕</span>;
+    return <span className="text-blue-500 ml-1">{rankOrder === 'desc' ? '↓' : '↑'}</span>;
+  };
 
   // 映射提醒图标和颜色
   const getReminderStyle = (type) => {
@@ -54,9 +112,32 @@ export default function AdminDashboard() {
           <h1 className="text-2xl font-black text-gray-900">商业智能 (BI) 看板</h1>
           <p className="text-sm text-gray-500 mt-1 font-medium">AutoMax 多门店经营数据实时监控台</p>
         </div>
-        <div className="text-sm font-bold text-gray-400 flex items-center bg-white px-5 py-2.5 rounded-2xl shadow-sm border border-gray-100">
-          <Activity size={16} className="mr-2 text-green-500 animate-pulse" />
-          系统已接入实时流水数据
+        <div className="flex items-center gap-2">
+          {scope?.canSwitchStore && (
+            <select
+              value={storeId}
+              onChange={(e) => setStoreId(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700"
+            >
+              <option value="">全部门店</option>
+              {storeOptions.map((s) => (
+                <option key={s.id} value={s.id}>{s.storeName}</option>
+              ))}
+            </select>
+          )}
+          <select
+            value={metric}
+            onChange={(e) => setMetric(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700"
+          >
+            {(availableMetrics.length ? availableMetrics : [{ key: 'revenue', label: '意向金趋势' }]).map((m) => (
+              <option key={m.key} value={m.key}>{m.label}</option>
+            ))}
+          </select>
+          <div className="text-sm font-bold text-gray-400 flex items-center bg-white px-5 py-2.5 rounded-2xl shadow-sm border border-gray-100">
+            <Activity size={16} className="mr-2 text-green-500 animate-pulse" />
+            {scope?.isAdmin ? '总部视图' : '门店视图'}
+          </div>
         </div>
       </div>
 
@@ -73,36 +154,60 @@ export default function AdminDashboard() {
         
         {/* 左侧：营收趋势面积图 */}
         <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
-          <h3 className="text-lg font-black text-gray-900 mb-8 flex items-center">
+          <h3 className="text-lg font-black text-gray-900 mb-8 flex items-center justify-between">
+            <span className="flex items-center">
             <TrendingUp size={20} className="mr-2 text-blue-500" />
-            近7日交易流水趋势 (意向金流入)
+            近7日趋势 ({selectedMetric === 'revenue' ? '意向金' : selectedMetric === 'orders' ? '订单量' : '收车量'})
+            </span>
+            {isMultiTrend && <span className="text-xs text-gray-400 font-bold">多门店对比</span>}
           </h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%" minWidth={1}>
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} tickFormatter={(v) => `¥${v}`} />
-                <Tooltip contentStyle={{ borderRadius: '1.5rem', border: 'none', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }} />
-                {/* 🌟 核心动画优化：划线时间1.5秒，点在最后才闪现 */}
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  name="流水金额"
-                  stroke="#2563eb" 
-                  strokeWidth={4} 
-                  fillOpacity={1} 
-                  fill="url(#colorRevenue)" 
-                  animationDuration={1500}
-                  dot={{ r: 4, fill: '#fff', stroke: '#2563eb', strokeWidth: 3 }}
-                />
-              </AreaChart>
+              {isMultiTrend ? (
+                <LineChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                  <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }} />
+                  <Legend />
+                  {trendStores.map((s, idx) => (
+                    <Line
+                      key={s.dataKey}
+                      type="monotone"
+                      dataKey={s.dataKey}
+                      name={s.storeName}
+                      stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                      strokeWidth={2.5}
+                      dot={{ r: 2.5 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  ))}
+                </LineChart>
+              ) : (
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                  <Tooltip contentStyle={{ borderRadius: '1.5rem', border: 'none', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }} />
+                  <Area 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    name={selectedMetric === 'revenue' ? '意向金' : selectedMetric === 'orders' ? '订单量' : '收车量'}
+                    stroke="#2563eb" 
+                    strokeWidth={4} 
+                    fillOpacity={1} 
+                    fill="url(#colorRevenue)" 
+                    animationDuration={1500}
+                    dot={{ r: 4, fill: '#fff', stroke: '#2563eb', strokeWidth: 3 }}
+                  />
+                </AreaChart>
+              )}
             </ResponsiveContainer>
           </div>
         </div>
@@ -201,6 +306,79 @@ export default function AdminDashboard() {
           </button>
         </div>
 
+      </div>
+
+      <div className="bg-white p-6 rounded-[1.75rem] shadow-sm border border-gray-100 max-w-[80rem] mx-auto w-full">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="text-lg font-black text-gray-900 flex items-center">
+            <Trophy size={18} className="mr-2 text-amber-500" />
+            门店数据总览
+          </h3>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400 font-bold">按此重排</span>
+            <select
+              value={rankBy}
+              onChange={(e) => {
+                setRankBy(e.target.value);
+                setRankOrder('desc');
+              }}
+              className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-700"
+            >
+              <option value="revenue">本月营收</option>
+              <option value="orderCount">订单数</option>
+              <option value="inventoryCount">在库车源</option>
+              <option value="leadCount">收车量</option>
+            </select>
+          </div>
+        </div>
+        <div className="overflow-x-auto rounded-2xl border border-gray-100">
+          <table className="mx-auto w-auto min-w-[800px] border-collapse">
+            <thead>
+              <tr className="bg-gray-50 text-sm font-black text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                <th className="py-3 px-4 text-center whitespace-nowrap">排名</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">门店</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">
+                  <button type="button" onClick={() => handleRankSort('revenue')} className={`inline-flex items-center ${rankBy === 'revenue' ? 'text-gray-700' : 'text-gray-400'} hover:text-gray-700`}>
+                    本月营收{sortArrow('revenue')}
+                  </button>
+                </th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">
+                  <button type="button" onClick={() => handleRankSort('orderCount')} className={`inline-flex items-center ${rankBy === 'orderCount' ? 'text-gray-700' : 'text-gray-400'} hover:text-gray-700`}>
+                    订单数{sortArrow('orderCount')}
+                  </button>
+                </th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">
+                  <button type="button" onClick={() => handleRankSort('inventoryCount')} className={`inline-flex items-center ${rankBy === 'inventoryCount' ? 'text-gray-700' : 'text-gray-400'} hover:text-gray-700`}>
+                    在库车源{sortArrow('inventoryCount')}
+                  </button>
+                </th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">
+                  <button type="button" onClick={() => handleRankSort('leadCount')} className={`inline-flex items-center ${rankBy === 'leadCount' ? 'text-gray-700' : 'text-gray-400'} hover:text-gray-700`}>
+                    收车量{sortArrow('leadCount')}
+                  </button>
+                </th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">优势项</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rankingTop.map((row, idx) => (
+                <tr key={`${row.storeId}-${idx}`} className="border-b border-gray-50 text-sm odd:bg-white even:bg-slate-50/30">
+                  <td className="py-3 px-4 text-center font-black text-gray-700 whitespace-nowrap">#{idx + 1}</td>
+                  <td className="py-3 px-4 text-center font-bold text-gray-900 whitespace-nowrap">{row.storeName}</td>
+                  <td className="py-3 px-4 text-center font-bold text-emerald-600 tabular-nums whitespace-nowrap">¥{Number(row.revenue || 0).toLocaleString()}</td>
+                  <td className="py-3 px-4 text-center text-gray-700 tabular-nums whitespace-nowrap">{row.orderCount || 0}</td>
+                  <td className="py-3 px-4 text-center text-gray-700 tabular-nums whitespace-nowrap">{row.inventoryCount || 0}</td>
+                  <td className="py-3 px-4 text-center text-gray-700 tabular-nums whitespace-nowrap">{row.leadCount || 0}</td>
+                  <td className="py-3 px-4 text-center whitespace-nowrap">
+                    <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {rankReason(row)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
