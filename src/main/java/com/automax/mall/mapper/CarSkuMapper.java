@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface CarSkuMapper extends BaseMapper<CarSku> {
@@ -29,4 +30,12 @@ public interface CarSkuMapper extends BaseMapper<CarSku> {
             "LEFT JOIN sys_store s ON k.store_id = s.id " +
             "WHERE k.id = #{id}")
     CarSkuVO selectCarDetailById(Long id);
+    @Select("SELECT COALESCE(p.brand, '未知') AS name, COUNT(1) AS count " +
+            "FROM car_sku k " +
+            "LEFT JOIN car_spu p ON k.spu_id = p.id " +
+            "WHERE k.status IN (1, 2) " +
+            "GROUP BY p.brand " +
+            "ORDER BY count DESC " +
+            "LIMIT 5")
+    List<Map<String, Object>> selectTopBrandInventory();
 }

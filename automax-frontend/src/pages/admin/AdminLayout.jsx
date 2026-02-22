@@ -65,7 +65,7 @@ const ws = new WebSocket(`ws://${window.location.hostname}:8080/api/ws/admin`);
     { name: '数据概览', icon: <LayoutDashboard size={20}/>, path: '/admin/dashboard' },
     { name: '车辆管理', icon: <CarFront size={20}/>, path: '/admin' },
     { name: '订单管理', icon: <FileText size={20}/>, path: '/admin/orders' },
-    { name: '线索管理', icon: <ClipboardList size={20}/>, path: '/admin/leads' },
+    { name: '收车审核管理', icon: <ClipboardList size={20}/>, path: '/admin/leads' },
     ...((userRole === 'ADMIN' || userRole === 'MANAGER') ? [
       { name: '门店管理', icon: <MapPin size={20}/>, path: '/admin/stores' },
       { name: '人员管理', icon: <UserCircle size={20}/>, path: '/admin/users' }

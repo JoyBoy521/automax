@@ -16,7 +16,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import LeadList from './pages/admin/LeadList';
 import StoreList from './pages/admin/StoreList'; // 门店管理
 import UserManagement from './pages/admin/UserManagement'; // 人员管理
-
+import SearchCarsPage from './pages/SearchCarsPage';
 // 🌟 路由守卫
 import ProtectedRoute from './components/ProtectedRoute';
 function App() {
@@ -32,7 +32,7 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/sell-car" element={<SellCar />} />
-        
+        <Route path="/search-cars" element={<SearchCarsPage />} />
         {/* 🌟 B 端：基础要求为 USER 角色 */}
         <Route path="/admin" element={
             <ProtectedRoute requiredRole={["ADMIN", "MANAGER", "STAFF"]}> 

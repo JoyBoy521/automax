@@ -40,7 +40,8 @@ export default function CarForm() {
   const [images, setImages] = useState(['']);
   const [majorRisks, setMajorRisks] = useState(['无重大事故', '无火烧痕迹', '无泡水痕迹', '发动机/变速箱无大修']);
   const [flaws, setFlaws] = useState([]);
-
+  const [previewMode, setPreviewMode] = useState('fit');
+  const [mainNaturalSize, setMainNaturalSize] = useState({ width: 0, height: 0 });
   // 🌟 核心优化：组件挂载时拉取数据库车型
   useEffect(() => {
     // 这里由于演示，我们借用 getCarList 的数据或者你新增的 getSpuList
@@ -152,7 +153,8 @@ export default function CarForm() {
 
   const years = Array.from({ length: 15 }, (_, i) => 2026 - i);
   const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
-
+  const previewImages = images.filter(img => img && img.trim());
+  const mainPreview = previewImages[0] || '';
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -303,21 +305,97 @@ export default function CarForm() {
             <h3 className="font-bold text-gray-900 mb-4 flex items-center"><ImageIcon size={18} className="mr-2 text-blue-500" /> 车辆大图</h3>
             <div className="space-y-3">
               {images.map((img, idx) => (
-                <input key={idx} className="w-full px-4 py-2 bg-gray-50 rounded-lg text-xs outline-none" placeholder="图片 URL" value={img} onChange={e => { const n = [...images]; n[idx] = e.target.value; setImages(n); }} />
+                <div key={idx} className="flex gap-2">
+                  <input
+                    className="flex-1 px-4 py-2 bg-gray-50 rounded-lg text-xs outline-none"
+                    placeholder="图片 URL"
+                    value={img}
+                    onChange={e => { const n = [...images]; n[idx] = e.target.value; setImages(n); }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setImages(images.length === 1 ? [''] : images.filter((_, i) => i !== idx))}
+                    className="px-3 py-2 text-xs text-red-500 bg-red-50 rounded-lg"
+                  >删除</button>
+                </div>
               ))}
               <button type="button" onClick={() => setImages([...images, ''])} className="w-full py-2 border-2 border-dashed border-gray-100 rounded-lg text-xs">+ 增加图片</button>
             </div>
-          </section>
-
-          <section className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
-            <h3 className="font-bold text-gray-900 mb-4 flex items-center"><ShieldCheck size={18} className="mr-2 text-green-500" /> 核心隐患排查</h3>
-            <div className="space-y-2">
-              {majorRisks.map((risk, idx) => (
-                <div key={idx} className="flex items-center bg-green-50/50 px-3 py-2 rounded-lg">
-                  <input className="flex-1 bg-transparent text-xs outline-none" value={risk} onChange={e => { const n = [...majorRisks]; n[idx] = e.target.value; setMajorRisks(n); }} />
-                  <button type="button" onClick={() => setMajorRisks(majorRisks.filter((_, i) => i !== idx))} className="text-green-300"><Minus size={14}/></button>
+            <div className="mt-5 border border-gray-100 rounded-xl p-3 bg-slate-50/70">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">预览</p>
+                <div className="text-[10px] rounded-lg bg-white border border-gray-200 p-0.5 flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode('fit')}
+                    className={`px-2 py-1 rounded ${previewMode === 'fit' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}
+                  >适配框</button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewMode('origin')}
+                    className={`px-2 py-1 rounded ${previewMode === 'origin' ? 'bg-slate-900 text-white' : 'text-slate-500'}`}
+                  >1:1</button>
                 </div>
-              ))}
+              </div>
+              {mainPreview ? (
+                <>
+                  <div className="rounded-lg border border-gray-200 bg-slate-900/95 h-52 overflow-auto">
+                    <div className="min-h-full min-w-full flex items-center justify-center p-2">
+                      <img
+                        src={mainPreview}
+                        alt="车辆主图预览"
+                        className={previewMode === 'fit' ? 'max-w-full max-h-full object-contain' : 'object-none'}
+                        style={previewMode === 'origin' ? { imageRendering: 'auto' } : undefined}
+                        onLoad={(e) => setMainNaturalSize({ width: e.currentTarget.naturalWidth, height: e.currentTarget.naturalHeight })}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[10px] text-slate-500">
+                    当前主图分辨率：{mainNaturalSize.width || '--'} × {mainNaturalSize.height || '--'} px
+                    {mainNaturalSize.width > 0 && mainNaturalSize.width < 500 ? '（清晰度偏低，建议换更大图）' : ''}
+                  </p>
+                  <a
+                    href={mainPreview}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block mt-1 text-[11px] text-blue-600 hover:text-blue-700 font-semibold"
+                  >
+                    查看原图（不经过预览缩放）
+                  </a>
+                  <div className="grid grid-cols-4 gap-2 mt-2">
+                    {previewImages.slice(0, 4).map((img, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          const n = [...images];
+                          const currentMain = previewImages[0];
+                          const clicked = img;
+                          const mainIdx = n.findIndex(v => (v || '').trim() === currentMain);
+                          const clickedIdx = n.findIndex(v => (v || '').trim() === clicked);
+                          if (mainIdx >= 0 && clickedIdx >= 0 && mainIdx !== clickedIdx) {
+                            [n[mainIdx], n[clickedIdx]] = [n[clickedIdx], n[mainIdx]];
+                            setImages(n);
+                          }
+                        }}
+                        className="w-full h-14 rounded-md border border-gray-200 overflow-hidden"
+                      >
+                        <img
+                          src={img}
+                          alt={`车辆缩略图${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="h-40 rounded-lg border border-dashed border-gray-300 flex items-center justify-center text-xs text-gray-400">
+                  暂无可预览图片，请先填写图片 URL
+                </div>
+              )}
             </div>
           </section>
 

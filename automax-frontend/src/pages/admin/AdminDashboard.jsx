@@ -31,13 +31,18 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const { stats, reminders, trendData, brandData } = data;
+  const { stats, reminders = [], trendData = [], brandData = [], inventoryAgeData = [] } = data || {};
 
   // 映射提醒图标和颜色
   const getReminderStyle = (type) => {
     if (type === 'stale') return { icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-50' };
     if (type === 'order') return { icon: CreditCard, color: 'text-blue-500', bg: 'bg-blue-50' };
     return { icon: Clock, color: 'text-orange-500', bg: 'bg-orange-50' };
+  };
+  const getLevelStyle = (level) => {
+    if (level === 'high') return 'text-red-300 bg-red-500/20';
+    if (level === 'medium') return 'text-yellow-300 bg-yellow-500/20';
+    return 'text-slate-300 bg-slate-500/30';
   };
 
   return (
@@ -57,10 +62,10 @@ export default function AdminDashboard() {
 
       {/* 核心指标卡片 (KPI) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard title="本月总交易营收" value={`¥${stats.totalRevenue.toLocaleString()}`} trend="+12.5%" trendUp={true} icon={<DollarSign size={24} className="text-blue-600" />} bg="bg-blue-50" />
-        <MetricCard title="当前库源总数" value={`${stats.inventoryCount} 辆`} trend="+5.2%" trendUp={true} icon={<CarFront size={24} className="text-indigo-600" />} bg="bg-indigo-50" />
-        <MetricCard title="新增业务线索" value={`${stats.newLeads} 条`} trend="-2.1%" trendUp={false} icon={<Users size={24} className="text-purple-600" />} bg="bg-purple-50" />
-        <MetricCard title="滞销积压预警" value={`${stats.staleWarning} 辆`} trend="需立即采取措施" trendUp={false} icon={<AlertTriangle size={24} className="text-red-600" />} bg="bg-red-50" />
+        <MetricCard title="本月总交易营收" value={`¥${(stats?.totalRevenue || 0).toLocaleString()}`} trend="实时统计" trendUp={true} icon={<DollarSign size={24} className="text-blue-600" />} bg="bg-blue-50" />
+        <MetricCard title="当前库源总数" value={`${stats?.inventoryCount || 0} 辆`} trend="实时统计" trendUp={true} icon={<CarFront size={24} className="text-indigo-600" />} bg="bg-indigo-50" />
+        <MetricCard title="本月新增收车请求" value={`${stats?.newLeads || 0} 条`} trend="实时统计" trendUp={true} icon={<Users size={24} className="text-purple-600" />} bg="bg-purple-50" />
+        <MetricCard title="滞销积压预警" value={`${stats?.staleWarning || 0} 辆`} trend="需立即采取措施" trendUp={false} icon={<AlertTriangle size={24} className="text-red-600" />} bg="bg-red-50" />
       </div>
 
       {/* 第一排图表：流水趋势 + 库龄分布 */}
@@ -111,7 +116,7 @@ export default function AdminDashboard() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%" minWidth={1}>
               <PieChart>
-                <Pie data={[{name: '健康', value: 70}, {name: '预警', value: 20}, {name: '滞销', value: 10}]} innerRadius={60} outerRadius={80} paddingAngle={8} dataKey="value">
+                <Pie data={inventoryAgeData} innerRadius={60} outerRadius={80} paddingAngle={8} dataKey="value">
                   {COLORS.map((color, index) => <Cell key={index} fill={color} stroke="none" />)}
                 </Pie>
                 <Tooltip contentStyle={{borderRadius: '1rem'}} />
@@ -164,9 +169,21 @@ export default function AdminDashboard() {
                   <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center ${style.bg}`}>
                     <style.icon size={18} className={style.color} />
                   </div>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors line-clamp-1">{item.title}</h4>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors line-clamp-1">{item.title}</h4>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${getLevelStyle(item.level)}`}>{item.level === 'high' ? '高优' : item.level === 'medium' ? '中优' : '日常'}</span>
+                    </div>
                     <p className="text-[10px] text-white/50 mt-1 leading-relaxed line-clamp-2">{item.desc}</p>
+                                      <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(item.link);
+                      }}
+                      className="mt-2 text-[10px] px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 hover:bg-blue-500/30"
+                    >
+                      {item.actionText || '立即处理'}
+                    </button>
                   </div>
                   <div className="flex items-center text-white/20 group-hover:text-blue-400 transition-colors">
                     <ChevronRight size={16} />
@@ -176,8 +193,11 @@ export default function AdminDashboard() {
             })}
           </div>
 
-          <button className="mt-6 w-full py-4 text-xs font-black text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-2xl transition-all relative z-10 uppercase tracking-widest">
-            查看全部任务
+          <button
+            onClick={() => navigate(reminders[0]?.link || '/admin')}
+            className="mt-6 w-full py-4 text-xs font-black text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-2xl transition-all relative z-10 uppercase tracking-widest"
+          >
+            进入首要任务
           </button>
         </div>
 
