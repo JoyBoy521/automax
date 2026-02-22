@@ -22,4 +22,9 @@ public class CarStore {
     private Double lat;
     private String phone;
     private LocalDateTime createTime;
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String managerName;
+
+    @com.baomidou.mybatisplus.annotation.TableField(exist = false)
+    private String managerPhone;
 }

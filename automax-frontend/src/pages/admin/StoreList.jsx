@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Phone, Plus, X, Map as MapIcon, Navigation, Save } from 'lucide-react';
-import { getStoreList, saveStore, deleteStore, getCandidateManagers, bindStoreManager } from '../../api';
-import AMapLoader from '@amap/amap-jsapi-loader'; // 需安装：npm i @amap/amap-jsapi-loader
+import { createPortal } from 'react-dom'; // 🌟 引入 Portal
+import { MapPin, Phone, Plus, X, Navigation, Save, UserCircle, Star } from 'lucide-react';
+import { getStoreList, saveStore, getCandidateManagers, bindStoreManager } from '../../api';
+import AMapLoader from '@amap/amap-jsapi-loader'; 
 import { toast } from 'react-toastify'; 
-
 
 export default function StoreList() {
   const [stores, setStores] = useState([]);
@@ -11,27 +11,28 @@ export default function StoreList() {
   const [editingStore, setEditingStore] = useState(null);
   const [formData, setFormData] = useState({ storeName: '', address: '', lng: '', lat: '', phone: '' });
   const [candidates, setCandidates] = useState([]);
-  useEffect(() => { fetchStores(); }, []);
 
-  useEffect(() => {
+  useEffect(() => { 
+    fetchStores(); 
+    fetchUsers(); 
+  }, []);
+
   const fetchUsers = async () => {
     const res = await getCandidateManagers();
     if (res.data.success) setCandidates(res.data.data);
   };
-  fetchUsers();
-}, []);
 
-const handleSetManager = async (storeId, userId) => {
-  await bindStoreManager({ storeId, userId });
-  toast.success("店长任命成功！");
-  fetchStores();
-};
   const fetchStores = async () => {
     const res = await getStoreList();
     if (res.data.success) setStores(res.data.data);
   };
 
-  // 🌟 核心：打开抽屉并初始化地图
+  const handleSetManager = async (storeId, userId) => {
+    await bindStoreManager({ storeId, userId });
+    toast.success("店长任命成功！");
+    fetchStores(); 
+  };
+
   const openDrawer = (store = null) => {
     setEditingStore(store);
     setFormData(store || { storeName: '', address: '', lng: '', lat: '', phone: '' });
@@ -39,59 +40,68 @@ const handleSetManager = async (storeId, userId) => {
     initMap(store);
   };
 
-const initMap = (existingStore) => {
-  AMapLoader.load({
-    key: "你的高德Key",
-    version: "2.0",
-    plugins: ['AMap.Geocoder', 'AMap.Marker'] // 🌟 必须加载 Geocoder 插件
-  }).then((AMap) => {
-    const map = new AMap.Map("map-container", {
-      zoom: 13,
-      center: existingStore ? [existingStore.longitude, existingStore.latitude] : [104.06, 30.57]
-    });
+  const initMap = (existingStore) => {
+    AMapLoader.load({
+      key: "你的高德Key", // 记得替换成你的真实 Key
+      version: "2.0",
+      plugins: ['AMap.Geocoder', 'AMap.Marker', 'AMap.CitySearch'] 
+    }).then((AMap) => {
+      const map = new AMap.Map("map-container", {
+        zoom: 13,
+        center: existingStore && existingStore.lng ? [existingStore.lng, existingStore.lat] : [104.06, 30.57]
+      });
 
-    // 创建逆地理编码实例
-    const geocoder = new AMap.Geocoder({
-      radius: 1000,
-      extensions: 'all'
-    });
+      const geocoder = new AMap.Geocoder({ radius: 1000, extensions: 'all' });
 
-    let marker = existingStore ? new AMap.Marker({ position: [existingStore.longitude, existingStore.latitude], map }) : null;
+      let marker = existingStore && existingStore.lng ? 
+        new AMap.Marker({ position: [existingStore.lng, existingStore.lat], map }) : null;
 
-    // 🌟 监听地图点击：选址并取词
-    map.on('click', (e) => {
-      const { lng, lat } = e.lnglat;
-      
-      // 更新或新建标记
-      if (marker) marker.setMap(null);
-      marker = new AMap.Marker({ position: [lng, lat], map });
+      // 智能定位：新增门店时自动定位到操作者所在城市
+      if (!existingStore || !existingStore.lng) {
+        const citySearch = new AMap.CitySearch();
+        citySearch.getLocalCity((status, result) => {
+          if (status === 'complete' && result.info === 'OK') {
+            map.setCity(result.city);
+          }
+        });
+      }
 
-      // 调用高德接口：经纬度 -> 文字地址
-      geocoder.getAddress([lng, lat], (status, result) => {
-        if (status === 'complete' && result.regeocode) {
-          const address = result.regeocode.formattedAddress;
-          
-          // 自动填充表单数据
-          setFormData(prev => ({
-            ...prev,
-            longitude: lng,
-            latitude: lat,
-            address: address // 🌟 这是系统自动抓取的地址
-          }));
-        }
+      map.on('click', (e) => {
+        const { lng, lat } = e.lnglat;
+        
+        if (marker) marker.setMap(null);
+        marker = new AMap.Marker({ position: [lng, lat], map });
+
+        geocoder.getAddress([lng, lat], (status, result) => {
+          if (status === 'complete' && result.regeocode) {
+            const address = result.regeocode.formattedAddress;
+            setFormData(prev => ({
+              ...prev,
+              lng: lng, 
+              lat: lat, 
+              address: address 
+            }));
+          }
+        });
       });
     });
-  });
-};
+  };
 
   const handleSubmit = async () => {
+    if (!formData.storeName) return toast.error("请输入门店名称");
+    if (!formData.lng || !formData.lat) return toast.error("请在地图上点击选择位置");
+    
     await saveStore(formData);
+    toast.success(editingStore ? "门店档案已更新" : "新门店录入成功");
     setIsDrawerOpen(false);
     fetchStores();
   };
 
   return (
-    <div className="space-y-6 relative overflow-hidden h-full">
+    // 🌟 修复：去掉 relative, overflow-hidden, h-full，让内容自然延伸，不会被截断
+    <div className="space-y-6 pb-10">
+      
+      {/* 头部标题区 */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-black text-gray-900">门店资产管理</h1>
         <button onClick={() => openDrawer()} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center shadow-lg hover:bg-blue-700 transition-all">
@@ -102,67 +112,101 @@ const initMap = (existingStore) => {
       {/* 门店网格列表 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {stores.map(store => (
-          <div key={store.id} className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-blue-50 rounded-2xl text-blue-600"><MapPin size={24}/></div>
-              <button onClick={() => openDrawer(store)} className="text-xs font-bold text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">编辑档案</button>
+          <div key={store.id} className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group flex flex-col justify-between">
+            
+            <div>
+              <div className="flex justify-between items-start mb-4">
+                <div className="p-3 bg-blue-50 rounded-2xl text-blue-600"><MapPin size={24}/></div>
+                <button onClick={() => openDrawer(store)} className="text-xs font-bold text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">编辑 / 任命</button>
+              </div>
+              <h3 className="text-lg font-black text-gray-900">{store.storeName}</h3>
+              <p className="text-xs text-gray-400 mt-2 flex items-start leading-relaxed h-8 line-clamp-2">
+                <Navigation size={12} className="mr-1 mt-0.5 flex-shrink-0"/> {store.address} {store.detailAddress || ''}
+              </p>
             </div>
-            <h3 className="text-lg font-black text-gray-900">{store.storeName}</h3>
-            <p className="text-xs text-gray-400 mt-2 flex items-center"><Navigation size={12} className="mr-1"/> {store.address}</p>
-            <div className="mt-6 pt-6 border-t border-gray-50 flex justify-between items-center">
-              <span className="text-sm font-bold text-gray-800 flex items-center"><Phone size={14} className="mr-2 text-gray-400"/> {store.phone}</span>
+
+            <div className="mt-6 pt-4 border-t border-gray-50 flex flex-col space-y-3">
+              <div className="flex justify-between items-center bg-orange-50/50 p-2.5 rounded-xl border border-orange-100/50">
+                <span className="text-xs font-bold text-orange-600 flex items-center">
+                  <Star size={14} className="mr-1.5" /> 
+                  店长: {store.managerName || '暂未任命'}
+                </span>
+                {store.managerPhone && store.managerPhone !== '-' && (
+                  <span className="text-[10px] text-orange-400 font-medium">{store.managerPhone}</span>
+                )}
+              </div>
+
+              <div className="flex justify-between items-center px-1">
+                <span className="text-sm font-bold text-gray-800 flex items-center">
+                  <Phone size={14} className="mr-2 text-gray-400"/> {store.phone || '无联系方式'}
+                </span>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* 🌟 核心：右侧抽屉 (Drawer) */}
-      <div className={`fixed inset-y-0 right-0 w-[500px] bg-white shadow-2xl z-50 transform transition-transform duration-500 ease-in-out ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-gray-100 flex flex-col`}>
-        <div className="p-8 border-b border-gray-50 flex justify-between items-center">
-          <h2 className="text-xl font-black">{editingStore ? '编辑门店' : '录入新门店'}</h2>
-          <button onClick={() => setIsDrawerOpen(false)} className="p-2 hover:bg-gray-100 rounded-full"><X/></button>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-8 space-y-6">
-          <div>
-            <label className="block text-xs font-bold text-gray-400 mb-2 uppercase">地图标注 (点击选址)</label>
-            <div id="map-container" className="h-64 rounded-3xl border border-gray-100 overflow-hidden shadow-inner"></div>
-            <p className="text-[10px] text-blue-500 mt-2 font-bold italic">已经在地图中获取坐标: {formData.lng}, {formData.lat}</p>
-          </div>
-            {editingStore && ( // 只有编辑已有门店时才显示
-            <div className="mt-4 p-4 bg-blue-50/50 rounded-3xl border border-blue-100">
-                <label className="block text-[10px] font-black text-blue-400 mb-2 uppercase tracking-widest">
-                任命此店店长
-                </label>
-                <select 
-                className="w-full text-xs p-3 bg-white rounded-2xl outline-none border-none shadow-sm"
-                onChange={(e) => handleSetManager(editingStore.id, e.target.value)} // 🌟 修正：使用 editingStore.id
-                defaultValue=""
-                >
-                <option value="" disabled>选择一名员工提拔为店长...</option>
-                {candidates.map(u => (
-                    <option key={u.id} value={u.id}>{u.username} ({u.phone || '无电话'})</option>
-                ))}
-                </select>
+      {/* 🌟 核心修复：使用 createPortal 把抽屉传送到 body 根节点，绝不被遮挡 */}
+      {createPortal(
+        <div className={`fixed inset-0 z-[9999] ${isDrawerOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+          
+          {/* 半透明背景遮罩 */}
+          <div 
+            className={`absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity duration-300 ${isDrawerOpen ? 'opacity-100' : 'opacity-0'}`} 
+            onClick={() => setIsDrawerOpen(false)}
+          ></div>
+          
+          {/* 抽屉主体 */}
+          <div className={`absolute inset-y-0 right-0 w-[500px] bg-white shadow-2xl transform transition-transform duration-500 ease-in-out flex flex-col border-l border-gray-100 ${isDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
+              <h2 className="text-xl font-black text-gray-900">{editingStore ? '编辑门店' : '录入新门店'}</h2>
+              <button onClick={() => setIsDrawerOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X size={20}/></button>
             </div>
-            )}
-          <div className="space-y-4">
-            <input placeholder="门店名称" className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-blue-500/20" value={formData.storeName} onChange={e => setFormData({...formData, storeName: e.target.value})} />
-            <input placeholder="自动获取的地址" className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none border border-blue-100 text-sm" value={formData.address} readOnly />
-            <input placeholder="补充详细地址 (如: 3楼A座102室)" className="w-full px-5 py-4 bg-white border border-gray-100 rounded-2xl outline-none shadow-sm" onChange={e => setFormData({...formData, detailAddress: e.target.value})} />
-            <input placeholder="联系电话" className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+            
+            <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              <div>
+                <label className="block text-[11px] font-black text-gray-400 mb-2 uppercase">地图标注 (点击选址)</label>
+                <div id="map-container" className="h-64 rounded-3xl border border-gray-100 overflow-hidden shadow-inner"></div>
+                <p className="text-[10px] text-blue-500 mt-2 font-bold italic">
+                  当前坐标: {formData.lng || '未获取'}, {formData.lat || '未获取'}
+                </p>
+              </div>
+              
+              {editingStore && ( 
+                <div className="mt-4 p-5 bg-blue-50/50 rounded-3xl border border-blue-100">
+                  <label className="block text-[10px] font-black text-blue-500 mb-3 uppercase tracking-widest flex items-center">
+                    <UserCircle size={14} className="mr-1" /> 人事任命 (自动顶替原店长)
+                  </label>
+                  <select 
+                    className="w-full text-sm font-medium p-3.5 bg-white text-gray-700 rounded-2xl outline-none border border-blue-200 shadow-sm focus:ring-2 ring-blue-500/20 transition-all cursor-pointer"
+                    onChange={(e) => handleSetManager(editingStore.id, e.target.value)}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>下拉选择员工提拔为新店长...</option>
+                    {candidates.map(u => (
+                      <option key={u.id} value={u.id}>{u.username} ({u.phone || '无电话'})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <input placeholder="门店名称" className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-blue-500/20 font-medium text-gray-900" value={formData.storeName} onChange={e => setFormData({...formData, storeName: e.target.value})} />
+                <input placeholder="自动获取的地址" className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none border border-blue-100 text-sm text-gray-500 cursor-not-allowed" value={formData.address} readOnly />
+                <input placeholder="补充详细地址 (如: 3楼A座102室)" className="w-full px-5 py-4 bg-white border border-gray-100 rounded-2xl outline-none shadow-sm focus:ring-2 ring-blue-500/20" value={formData.detailAddress || ''} onChange={e => setFormData({...formData, detailAddress: e.target.value})} />
+                <input placeholder="联系电话" className="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 ring-blue-500/20" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="p-8 border-t border-gray-50 bg-white">
+              <button onClick={handleSubmit} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black flex items-center justify-center space-x-2 shadow-xl hover:bg-black transition-all">
+                <Save size={20}/> <span>保存门店档案</span>
+              </button>
+            </div>
           </div>
-        </div>
-
-        <div className="p-8 border-t border-gray-50">
-          <button onClick={handleSubmit} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black flex items-center justify-center space-x-2 shadow-xl hover:bg-black transition-all">
-            <Save size={20}/> <span>保存门店档案</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 遮罩层 */}
-      {isDrawerOpen && <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity" onClick={() => setIsDrawerOpen(false)}></div>}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

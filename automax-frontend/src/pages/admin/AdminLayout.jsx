@@ -18,7 +18,7 @@ export default function AdminLayout() {
   // 定义哪些是“内部员工”，准许进入后台
   const internalRoles = ['ADMIN', 'MANAGER', 'STAFF', 'USER'];
 
-  useEffect(() => {
+useEffect(() => {
     // 1. 权限拦截：如果不属于内部员工角色，直接踢回首页
     if (!internalRoles.includes(userRole)) {
       toast.error("权限不足：只有内部人员可进入后台");
@@ -27,7 +27,8 @@ export default function AdminLayout() {
     }
 
     // 2. 建立 WebSocket 连接
-    const ws = new WebSocket(`ws://${window.location.hostname}:8080/api/ws/admin`);
+const ws = new WebSocket(`ws://${window.location.hostname}:8080/api/ws/admin`);
+    
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -43,7 +44,17 @@ export default function AdminLayout() {
         );
       } catch (err) { console.error("解析通知消息失败", err); }
     };
-    return () => ws.close();
+
+    // 🌟 核心修复：更优雅的清理逻辑，专门对付 React 18 StrictMode
+    return () => {
+      if (ws.readyState === WebSocket.CONNECTING) {
+        // 如果还在连接中就被 React 卸载，告诉它连上后马上关闭
+        ws.onopen = () => ws.close();
+      } else if (ws.readyState === WebSocket.OPEN) {
+        // 如果已经连接正常，直接关闭
+        ws.close();
+      }
+    };
   }, [userRole, navigate]);
 
   // 🌟 核心修复：如果不是内部员工，渲染空；如果是，则渲染完整后台

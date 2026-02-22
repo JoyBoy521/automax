@@ -55,5 +55,7 @@ export const updateUserRole = (data) => api.post('/admin/users/updateRole', data
 
 export const getCandidateManagers = () => api.get('/admin/stores/candidates');
 export const bindStoreManager = (data) => api.post('/admin/stores/bind-manager', data);
+export const saveAdminUser = (data) => api.post('/admin/users/save', data);
+export const getDashboardStats = () => api.get('/admin/dashboard/stats');
 
 export default api;
