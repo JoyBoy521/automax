@@ -1,0 +1,18 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    # 指向你刚建的库 automax_car_mall
+    url: jdbc:mysql://localhost:3306/automax_car_mall?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=GMT%2B8
+    username: root
+    password: 123456 # 填你的数据库密码
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+# MyBatis-Plus 进阶配置
+mybatis-plus:
+  configuration:
+    # 在控制台打印 SQL 语句，调试必备，防止“盲打”
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 开启驼峰命名转换（数据库 vin_code 自动映射 Java 的 vinCode）
+    map-underscore-to-camel-case: true
