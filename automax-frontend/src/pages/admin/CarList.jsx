@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit3, Trash2, ExternalLink,Clock} from 'lucide-react';
+import { Plus, Edit3, Trash2, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getAdminCarList, getStoreList } from '../../api';
+import { deleteAdminCar, getAdminCarList, getStoreList } from '../../api';
+import { toast } from 'react-toastify';
 
 
 export default function CarList() {
@@ -36,6 +37,22 @@ export default function CarList() {
       }
     });
   }, [role]);
+
+  const handleDelete = async (car) => {
+    const ok = window.confirm(`确认删除车辆【${car.title || car.vinCode}】吗？`);
+    if (!ok) return;
+    try {
+      const res = await deleteAdminCar(car.id);
+      if (res.data?.success) {
+        toast.success(res.data.msg || '删除成功');
+        fetchCars();
+      } else {
+        toast.error(res.data?.msg || '删除失败');
+      }
+    } catch (e) {
+      toast.error('删除失败，请稍后重试');
+    }
+  };
       const renderAgingTag = (createTime) => {
           if (!createTime) {
             return <span className="px-3 py-1 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold">未知</span>;
@@ -119,13 +136,13 @@ export default function CarList() {
                   </td>
                   <td className="px-6 py-4 text-right space-x-2">
                     <button onClick={() => navigate(`/admin/edit/${car.id}`)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit3 size={18}/></button>
-                    <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                    <button onClick={() => handleDelete(car)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="2" className="px-6 py-10 text-center text-gray-400 italic">
+                <td colSpan="4" className="px-6 py-10 text-center text-gray-400 italic">
                   暂无车辆数据，请点击右上角新增
                 </td>
               </tr>

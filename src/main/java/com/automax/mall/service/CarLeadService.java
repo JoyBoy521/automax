@@ -33,7 +33,11 @@ public class CarLeadService {
         SysUser currentUser = UserContext.getUser();
         QueryWrapper<CarLead> queryWrapper = new QueryWrapper<>();
         if (currentUser != null && !"ADMIN".equals(currentUser.getRole())) {
-            queryWrapper.eq("store_id", currentUser.getStoreId());
+            if (currentUser.getStoreId() == null) {
+                queryWrapper.isNull("store_id");
+            } else {
+                queryWrapper.and(w -> w.eq("store_id", currentUser.getStoreId()).or().isNull("store_id"));
+            }
         } else if (storeId != null) {
             queryWrapper.eq("store_id", storeId);
         }

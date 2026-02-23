@@ -44,9 +44,8 @@ public class LoginInterceptor implements HandlerInterceptor {
                     return false;
                 }
 
-                // 人员/看板属于管理操作：仅 ADMIN / MANAGER
-                if ((uri.startsWith("/api/admin/users/")
-                        || uri.startsWith("/api/admin/dashboard/"))
+                // 人员管理：仅 ADMIN / MANAGER
+                if (uri.startsWith("/api/admin/users/")
                         && !hasAnyRole(role, "ADMIN", "MANAGER")) {
                     response.setStatus(403);
                     return false;

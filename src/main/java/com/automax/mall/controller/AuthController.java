@@ -28,6 +28,9 @@ public class AuthController {
 
         // 简单明文比对（毕设够用了，如果想加分可以之后加 BCrypt）
         if (user != null && user.getPassword().equals(password)) {
+            if ("OFFBOARDED".equals(user.getRole())) {
+                return Map.of("code", 403, "success", false, "msg", "该员工已离岗，无法登录");
+            }
             // 🌟 签发 Token，包含 userId, username, role
             String token = JwtUtils.createToken(user.getId(), user.getUsername(), user.getRole());
             return Map.of(

@@ -5,6 +5,7 @@ import com.automax.mall.entity.CarLead;
 import com.automax.mall.entity.CarSku;
 import com.automax.mall.entity.SysUser;
 import com.automax.mall.mapper.CarSkuMapper;
+import com.automax.mall.mapper.TradeOrderMapper;
 import com.automax.mall.utils.UserContext;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -27,6 +28,8 @@ public class AdminCarService {
     private ObjectMapper objectMapper;
     @Autowired
     private com.automax.mall.mapper.CarLeadMapper carLeadMapper;
+    @Autowired
+    private TradeOrderMapper tradeOrderMapper;
 
     public List<CarSku> listCars(SysUser currentUser, Long storeId) {
         QueryWrapper<CarSku> wrapper = new QueryWrapper<>();
@@ -129,5 +132,34 @@ public class AdminCarService {
             lead.setStatus(4); // 4 = 成功收购入库
             carLeadMapper.updateById(lead); // 别忘了注入 carLeadMapper
         }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public String deleteCar(Long carId) {
+        SysUser currentUser = UserContext.getUser();
+        if (currentUser == null) {
+            return "请先登录";
+        }
+        CarSku car = carSkuMapper.selectById(carId);
+        if (car == null) {
+            return "车辆不存在或已删除";
+        }
+        if (!"ADMIN".equals(currentUser.getRole())) {
+            if (currentUser.getStoreId() == null || !currentUser.getStoreId().equals(car.getStoreId())) {
+                return "无权删除其他门店车辆";
+            }
+        }
+
+        Long orderCount = tradeOrderMapper.selectCount(
+                new QueryWrapper<com.automax.mall.entity.TradeOrder>()
+                        .eq("sku_id", carId)
+                        .in("status", 1, 2, 3, 4)
+        );
+        if (orderCount != null && orderCount > 0) {
+            return "该车辆已有关联订单，不能删除";
+        }
+
+        carSkuMapper.deleteById(carId);
+        return null;
     }
 }

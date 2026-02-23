@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { UserCircle, ShieldCheck, Building2, Users, ShieldAlert, UserPlus, X, Save, Phone, ChevronDown, Check, MapPin } from 'lucide-react';
-import { getAdminUserList, getStoreList, saveAdminUser, updateUserRole } from '../../api';
+import { deleteAdminUser, getAdminUserList, getStoreList, offboardAdminUser, restoreAdminUser, saveAdminUser } from '../../api';
 import { toast } from 'react-toastify';
 
 export default function UserManagement() {
@@ -47,18 +47,6 @@ export default function UserManagement() {
     } catch (error) { toast.error("数据加载失败"); }
   };
 
-  const handleRoleUpdate = async (userId, storeId, role) => {
-    try {
-      const res = await updateUserRole({ userId, storeId, role });
-      if (res.data.success) {
-        toast.success(res.data.msg || "状态已更新！");
-        fetchData(); 
-      } else {
-        toast.error(res.data.msg || "更新失败");
-      }
-    } catch (error) { toast.error("网络请求出错"); }
-  };
-
   const openDrawer = (user = null) => {
     setEditingUser(user);
     setStoreDropdownOpen(false); // 每次打开抽屉时重置下拉状态
@@ -72,6 +60,9 @@ export default function UserManagement() {
 
   const handleSubmit = async () => {
     if (!formData.username) return toast.error("员工姓名/账号不能为空");
+    if (isAdmin && (formData.role === 'STAFF' || formData.role === 'MANAGER') && !formData.storeId) {
+      return toast.error("请先为员工分配门店");
+    }
     try {
       const res = await saveAdminUser(formData);
       if (res.data.success) {
@@ -84,8 +75,55 @@ export default function UserManagement() {
     } catch (error) { toast.error("保存失败"); }
   };
 
+  const handleOffboard = async (userId) => {
+    const ok = window.confirm("确认将该员工标记为离岗吗？离岗后无法登录。");
+    if (!ok) return;
+    try {
+      const res = await offboardAdminUser(userId);
+      if (res.data?.success) {
+        toast.success(res.data.msg || '已离岗');
+        fetchData();
+      } else {
+        toast.error(res.data?.msg || '操作失败');
+      }
+    } catch (error) {
+      toast.error("离岗操作失败");
+    }
+  };
+
+  const handleRestore = async (userId) => {
+    try {
+      const res = await restoreAdminUser(userId);
+      if (res.data?.success) {
+        toast.success(res.data.msg || '已恢复');
+        fetchData();
+      } else {
+        toast.error(res.data?.msg || '恢复失败');
+      }
+    } catch (error) {
+      toast.error("恢复失败");
+    }
+  };
+
+  const handleDelete = async (userId) => {
+    const ok = window.confirm("确认彻底删除该离岗员工档案吗？此操作不可撤销。");
+    if (!ok) return;
+    try {
+      const res = await deleteAdminUser(userId);
+      if (res.data?.success) {
+        toast.success(res.data.msg || '删除成功');
+        fetchData();
+      } else {
+        toast.error(res.data?.msg || '删除失败');
+      }
+    } catch (error) {
+      toast.error("删除失败");
+    }
+  };
+
   const managersCount = users.filter(u => u.role === 'MANAGER').length;
   const staffCount = users.filter(u => u.role === 'STAFF').length;
+  const offboardedCount = users.filter(u => u.role === 'OFFBOARDED').length;
 
   return (
     <div className="space-y-8 pb-10">
@@ -116,7 +154,7 @@ export default function UserManagement() {
       </div>
 
       {/* 顶部数据看板 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center space-x-5">
           <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><Users size={28} /></div>
           <div>
@@ -136,6 +174,13 @@ export default function UserManagement() {
           <div>
             <p className="text-sm font-bold text-gray-400">一线销售顾问</p>
             <p className="text-2xl font-black text-gray-900">{staffCount}</p>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center space-x-5">
+          <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center"><ShieldAlert size={28} /></div>
+          <div>
+            <p className="text-sm font-bold text-gray-400">离岗员工</p>
+            <p className="text-2xl font-black text-gray-900">{offboardedCount}</p>
           </div>
         </div>
       </div>
@@ -175,6 +220,10 @@ export default function UserManagement() {
                       <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-black bg-purple-50 text-purple-600 border border-purple-100">
                         <ShieldCheck size={14} className="mr-1.5" /> 门店主理人
                       </span>
+                    ) : user.role === 'OFFBOARDED' ? (
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-black bg-rose-50 text-rose-600 border border-rose-100">
+                        <ShieldAlert size={14} className="mr-1.5 opacity-70" /> 离岗员工
+                      </span>
                     ) : (
                       <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[11px] font-black bg-slate-50 text-slate-600 border border-slate-200">
                         <ShieldAlert size={14} className="mr-1.5 opacity-70" /> 普通销售
@@ -189,10 +238,25 @@ export default function UserManagement() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-8 py-5 text-right">
+                  <td className="px-8 py-5 text-right space-x-3">
                     <button onClick={() => openDrawer(user)} className="text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors">
                       编辑 / 调岗
                     </button>
+                    {user.role !== 'OFFBOARDED' && (
+                      <button onClick={() => handleOffboard(user.id)} className="text-xs font-bold text-amber-600 hover:text-amber-800 transition-colors">
+                        下岗
+                      </button>
+                    )}
+                    {user.role === 'OFFBOARDED' && (
+                      <>
+                        <button onClick={() => handleRestore(user.id)} className="text-xs font-bold text-emerald-600 hover:text-emerald-800 transition-colors">
+                          恢复
+                        </button>
+                        <button onClick={() => handleDelete(user.id)} className="text-xs font-bold text-red-600 hover:text-red-800 transition-colors">
+                          辞退删除
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               )})}

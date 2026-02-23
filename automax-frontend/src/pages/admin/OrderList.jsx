@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, XCircle, ChevronRight, FileText, CreditCard } from 'lucide-react';
 import { getAdminOrderList, getStoreList, updateOrderStatus } from '../../api';
+import { toast } from 'react-toastify';
 
 export default function OrderList() {
   const role = localStorage.getItem('role');
@@ -51,11 +52,13 @@ export default function OrderList() {
     try {
       const res = await updateOrderStatus(orderId, newStatus);
       if (res.data && res.data.success) {
-        alert(`${actionName} 成功！`);
+        toast.success(`${actionName} 成功`);
         fetchOrders(); 
+      } else {
+        toast.error(res.data?.msg || '操作失败，请重试');
       }
     } catch (err) {
-      alert("操作失败，请重试");
+      toast.error("操作失败，请重试");
     }
   };
 

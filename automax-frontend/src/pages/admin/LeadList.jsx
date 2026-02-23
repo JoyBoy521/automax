@@ -6,6 +6,7 @@ import {
   Search, Filter, Sparkles, PlusCircle, RotateCcw
 } from 'lucide-react';
 import { getLeadList, getStoreList, updateLeadStatus } from '../../api';
+import { toast } from 'react-toastify';
 
 const STATUS_META = {
   0: {
@@ -78,10 +79,15 @@ export default function LeadList() {
 
   const handleStatusChange = async (id, newStatus) => {
     try {
-      await updateLeadStatus(id, newStatus);
+      const res = await updateLeadStatus(id, newStatus);
+      if (!res.data?.success) {
+        toast.error(res.data?.msg || "更新状态失败");
+        return;
+      }
+      toast.success("状态更新成功");
       fetchLeads();
     } catch (error) {
-      alert("更新状态失败");
+      toast.error("更新状态失败");
     }
   };
 

@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -56,6 +57,9 @@ public class AdminUserController {
 
         Long userId = Long.valueOf(params.get("userId").toString());
         String role = params.get("role").toString();
+        if (!isValidRole(role)) {
+            return Map.of("code", 400, "success", false, "msg", "角色不合法");
+        }
 
         // 门店ID可能为空（未分配门店）
         Long storeId = null;
@@ -78,6 +82,9 @@ public class AdminUserController {
                 return Map.of("code", 403, "success", false, "msg", "店长仅可设置为 STAFF");
             }
             storeId = currentUser.getStoreId();
+        }
+        if (("STAFF".equals(role) || "MANAGER".equals(role)) && storeId == null) {
+            return Map.of("code", 400, "success", false, "msg", "员工必须归属门店");
         }
 
         // 🌟 核心防御：如果是在页面上把他设为 MANAGER，执行防多店长冲突机制
@@ -113,6 +120,19 @@ public class AdminUserController {
             user.setStoreId(currentUser.getStoreId());
         }
 
+        if (user.getUsername() != null) {
+            user.setUsername(user.getUsername().trim());
+        }
+        if (user.getUsername() == null || user.getUsername().isEmpty()) {
+            return Map.of("code", 400, "success", false, "msg", "员工账号不能为空");
+        }
+        if (user.getRole() == null) {
+            user.setRole("STAFF");
+        }
+        if (!isValidRole(user.getRole())) {
+            return Map.of("code", 400, "success", false, "msg", "角色不合法");
+        }
+
         // 1. 新增时的默认逻辑
         if (user.getId() == null) {
             // 校验账号是否重复
@@ -124,7 +144,7 @@ public class AdminUserController {
             if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
                 user.setPassword("123456");
             }
-            if (user.getRole() == null) user.setRole("STAFF");
+            user.setCreateTime(LocalDateTime.now());
         } else {
             SysUser existing = sysUserMapper.selectById(user.getId());
             if (existing == null || !canManageUser(currentUser, existing)) {
@@ -134,6 +154,9 @@ public class AdminUserController {
             if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
                 user.setPassword(existing.getPassword());
             }
+        }
+        if (("STAFF".equals(user.getRole()) || "MANAGER".equals(user.getRole())) && user.getStoreId() == null) {
+            return Map.of("code", 400, "success", false, "msg", "员工必须归属门店");
         }
 
         // 2. 🌟 核心防御：如果分配为 MANAGER，执行防多店长冲突机制
@@ -160,6 +183,75 @@ public class AdminUserController {
         }
     }
 
+    @PostMapping("/offboard")
+    public Map<String, Object> offboardUser(@RequestBody Map<String, Object> params) {
+        SysUser currentUser = UserContext.getUser();
+        if (currentUser == null) {
+            return Map.of("code", 401, "success", false, "msg", "请先登录");
+        }
+        Long userId = Long.valueOf(params.get("userId").toString());
+        SysUser target = sysUserMapper.selectById(userId);
+        if (target == null) {
+            return Map.of("code", 404, "success", false, "msg", "员工不存在");
+        }
+        if (currentUser.getId().equals(userId)) {
+            return Map.of("code", 400, "success", false, "msg", "不能操作自己");
+        }
+        if (!canManageUser(currentUser, target)) {
+            return Map.of("code", 403, "success", false, "msg", "无权操作该员工");
+        }
+        target.setRole("OFFBOARDED");
+        sysUserMapper.updateById(target);
+        return Map.of("code", 200, "success", true, "msg", "已标记为离岗员工");
+    }
+
+    @PostMapping("/restore")
+    public Map<String, Object> restoreUser(@RequestBody Map<String, Object> params) {
+        SysUser currentUser = UserContext.getUser();
+        if (currentUser == null) {
+            return Map.of("code", 401, "success", false, "msg", "请先登录");
+        }
+        Long userId = Long.valueOf(params.get("userId").toString());
+        SysUser target = sysUserMapper.selectById(userId);
+        if (target == null) {
+            return Map.of("code", 404, "success", false, "msg", "员工不存在");
+        }
+        if (!canManageUser(currentUser, target)) {
+            return Map.of("code", 403, "success", false, "msg", "无权操作该员工");
+        }
+        target.setRole("STAFF");
+        if ("MANAGER".equals(currentUser.getRole())) {
+            target.setStoreId(currentUser.getStoreId());
+        } else if (target.getStoreId() == null) {
+            return Map.of("code", 400, "success", false, "msg", "请先给该员工分配门店");
+        }
+        sysUserMapper.updateById(target);
+        return Map.of("code", 200, "success", true, "msg", "员工已恢复为在岗 STAFF");
+    }
+
+    @DeleteMapping("/{id}")
+    public Map<String, Object> deleteUser(@PathVariable Long id) {
+        SysUser currentUser = UserContext.getUser();
+        if (currentUser == null) {
+            return Map.of("code", 401, "success", false, "msg", "请先登录");
+        }
+        SysUser target = sysUserMapper.selectById(id);
+        if (target == null) {
+            return Map.of("code", 404, "success", false, "msg", "员工不存在");
+        }
+        if (currentUser.getId().equals(id)) {
+            return Map.of("code", 400, "success", false, "msg", "不能删除当前登录账号");
+        }
+        if (!canManageUser(currentUser, target)) {
+            return Map.of("code", 403, "success", false, "msg", "无权删除该员工");
+        }
+        if (!"OFFBOARDED".equals(target.getRole())) {
+            return Map.of("code", 400, "success", false, "msg", "请先执行离岗，再进行删除");
+        }
+        sysUserMapper.deleteById(id);
+        return Map.of("code", 200, "success", true, "msg", "员工档案已删除");
+    }
+
     private boolean canManageUser(SysUser operator, SysUser target) {
         if (operator == null || target == null) {
             return false;
@@ -174,5 +266,13 @@ public class AdminUserController {
                     && !"MANAGER".equals(target.getRole());
         }
         return false;
+    }
+
+    private boolean isValidRole(String role) {
+        return "ADMIN".equals(role)
+                || "MANAGER".equals(role)
+                || "STAFF".equals(role)
+                || "CUSTOMER".equals(role)
+                || "OFFBOARDED".equals(role);
     }
 }

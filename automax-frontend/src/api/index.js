@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from 'react-toastify';
 
 // 🌟 统一使用 api 变量名
 const api = axios.create({
@@ -22,11 +23,11 @@ api.interceptors.response.use(response => {
   return response;
 }, error => {
   if (error.response?.status === 401) {
-    alert("会话已过期，请重新登录");
+    toast.error("会话已过期，请重新登录");
     localStorage.clear();
     window.location.href = "/"; 
   } else if (error.response?.status === 403) {
-    alert("⛔ 权限不足！");
+    toast.error("权限不足");
   }
   return Promise.reject(error);
 });
@@ -39,6 +40,7 @@ export const getCarList = (params) => api.get('/cars/list', { params });
 export const createOrder = (data) => api.post('/orders/lock', data);
 export const addCar = (data) => api.post('/admin/cars/add', data);
 export const getAdminCarList = (params) => api.get('/admin/cars/list', { params });
+export const deleteAdminCar = (id) => api.delete(`/admin/cars/${id}`);
 export const getAdminOrderList = (params) => api.get(`/orders/admin/list`, { params });
 export const getMyOrderList = () => api.get(`/orders/my/list`);
 export const getMyOrderDetail = (id) => api.get(`/orders/my/${id}`);
@@ -57,6 +59,9 @@ export const deleteStore = (id) => api.delete(`/admin/stores/${id}`);
 
 export const getAdminUserList = (params) => api.get('/admin/users/list', { params });
 export const updateUserRole = (data) => api.post('/admin/users/updateRole', data);
+export const offboardAdminUser = (userId) => api.post('/admin/users/offboard', { userId });
+export const restoreAdminUser = (userId) => api.post('/admin/users/restore', { userId });
+export const deleteAdminUser = (id) => api.delete(`/admin/users/${id}`);
 
 export const getCandidateManagers = () => api.get('/admin/stores/candidates');
 export const bindStoreManager = (data) => api.post('/admin/stores/bind-manager', data);

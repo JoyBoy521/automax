@@ -72,7 +72,7 @@ function App() {
           <Route index element={<CarList />} /> 
           <Route path="add" element={<CarForm />} />
           <Route path="edit/:id" element={<CarForm />} />
-          <Route path="dashboard" element={<ProtectedRoute requiredRole={["ADMIN", "MANAGER"]}><AdminDashboard /></ProtectedRoute>} />
+          <Route path="dashboard" element={<ProtectedRoute requiredRole={["ADMIN", "MANAGER", "STAFF"]}><AdminDashboard /></ProtectedRoute>} />
           <Route path="orders" element={<OrderList />} />
           <Route path="leads" element={<LeadList />} /> 
 

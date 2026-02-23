@@ -6,6 +6,7 @@ import {
 import { useLocation,useNavigate, useParams } from 'react-router-dom';
 // 🌟 引入新的 getSpuList 接口 (需在 api/index.js 定义)
 import { addCar, getCarDetail, getCarList, getStoreList } from '../../api';
+import { toast } from 'react-toastify';
 
 
 export default function CarForm() {
@@ -168,6 +169,7 @@ export default function CarForm() {
 
   const years = Array.from({ length: 15 }, (_, i) => 2026 - i);
   const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+  const selectedStore = stores.find(s => Number(s.id) === Number(formData.storeId));
   const previewImages = images.filter(img => img && img.trim());
   const mainPreview = previewImages[0] || '';
   const handleSubmit = async (e) => {
@@ -187,11 +189,13 @@ export default function CarForm() {
     try {
       const res = await addCar(payload);
       if (res.data.success) {
-        alert(isEdit ? '✨ 档案修改成功！' : '🚀 新车入库上架成功！');
+        toast.success(isEdit ? '档案修改成功' : '新车入库上架成功');
         navigate('/admin');
+      } else {
+        toast.error(res.data?.msg || '保存失败，请检查字段');
       }
     } catch (err) {
-      alert('保存失败，请检查字段');
+      toast.error('保存失败，请检查字段');
     } finally { setIsSubmitting(false); }
   };
 
@@ -287,7 +291,13 @@ export default function CarForm() {
                         <option key={s.id} value={s.id}>{s.storeName}</option>
                       ))}
                     </select>
+                    <p className="text-[11px] text-gray-500 mb-4">
+                      车辆地理位置按所属门店定位。{selectedStore ? `当前门店地址：${selectedStore.address || '未填写'}；经纬度：${selectedStore.lng || '-'}, ${selectedStore.lat || '-'}` : '请先选择门店'}
+                    </p>
                   </>
+                )}
+                {!isAdmin && (
+                  <p className="text-[11px] text-gray-500 mb-4">车辆地理位置由当前员工所属门店自动确定。</p>
                 )}
                 <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest">里程 (万km)</label>
                 <input required type="number" step="0.01" className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none" value={formData.mileage} onChange={e => setFormData({...formData, mileage: e.target.value})} />

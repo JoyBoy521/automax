@@ -44,4 +44,13 @@ public class AdminCarController {
             return Map.of("code", 500, "success", false, "msg", "上架失败：" + e.getMessage());
         }
     }
+
+    @DeleteMapping("/{id}")
+    public Map<String, Object> deleteCar(@PathVariable Long id) {
+        String err = adminCarService.deleteCar(id);
+        if (err != null) {
+            return Map.of("code", 400, "success", false, "msg", err);
+        }
+        return Map.of("code", 200, "success", true, "msg", "车辆删除成功");
+    }
 }
