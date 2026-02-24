@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, Users, CarFront, AlertTriangle, 
@@ -161,8 +161,8 @@ export default function AdminDashboard() {
             </span>
             {isMultiTrend && <span className="text-xs text-gray-400 font-bold">多门店对比</span>}
           </h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%" minWidth={1}>
+          <SafeChartContainer className="h-80">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={240}>
               {isMultiTrend ? (
                 <LineChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -209,7 +209,7 @@ export default function AdminDashboard() {
                 </AreaChart>
               )}
             </ResponsiveContainer>
-          </div>
+          </SafeChartContainer>
         </div>
 
         {/* 右侧：饼图 */}
@@ -218,8 +218,8 @@ export default function AdminDashboard() {
             <Package size={20} className="mr-2 text-orange-500" />
             库龄健康分布
           </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%" minWidth={1}>
+          <SafeChartContainer className="h-64">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
               <PieChart>
                 <Pie data={inventoryAgeData} innerRadius={60} outerRadius={80} paddingAngle={8} dataKey="value">
                   {COLORS.map((color, index) => <Cell key={index} fill={color} stroke="none" />)}
@@ -228,7 +228,7 @@ export default function AdminDashboard() {
                 <Legend verticalAlign="bottom" iconType="circle" />
               </PieChart>
             </ResponsiveContainer>
-          </div>
+          </SafeChartContainer>
           <p className="text-[10px] text-gray-400 text-center font-medium italic mt-4">数据基于入库时间实时计算</p>
         </div>
       </div>
@@ -242,8 +242,8 @@ export default function AdminDashboard() {
             <CarFront size={20} className="mr-2 text-emerald-500" />
             TOP 5 品牌库存水位监控
           </h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%" minWidth={1}>
+          <SafeChartContainer className="h-72">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={220}>
               <BarChart data={brandData} barSize={40}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontWeight: 'bold'}} dy={10} />
@@ -252,7 +252,7 @@ export default function AdminDashboard() {
                 <Bar dataKey="count" fill="#10b981" radius={[8, 8, 0, 0]} animationDuration={2000} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          </SafeChartContainer>
         </div>
 
         {/* 右侧：动态待办列表 */}
@@ -380,6 +380,35 @@ export default function AdminDashboard() {
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SafeChartContainer({ className, children }) {
+  const wrapperRef = useRef(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!wrapperRef.current) return undefined;
+    const el = wrapperRef.current;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setReady(rect.width > 1 && rect.height > 1);
+    };
+    update();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(update);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    const t = setTimeout(update, 120);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div ref={wrapperRef} className={`${className} min-w-0 min-h-[220px]`}>
+      {ready ? children : <div className="w-full h-full min-h-[220px]" />}
     </div>
   );
 }

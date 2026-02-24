@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom'; // 🌟 引入 Portal
 import { MapPin, Phone, Plus, X, Navigation, Save, UserCircle, Star } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { getStoreList, saveStore, getCandidateManagers, bindStoreManager } from '../../api';
 import AMapLoader from '@amap/amap-jsapi-loader'; 
 import { toast } from 'react-toastify'; 
 
 export default function StoreList() {
+  const navigate = useNavigate();
+  const amapKey = import.meta.env.VITE_AMAP_KEY?.trim();
   const [stores, setStores] = useState([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingStore, setEditingStore] = useState(null);
@@ -19,7 +22,7 @@ export default function StoreList() {
 
   const fetchUsers = async () => {
     const res = await getCandidateManagers();
-    if (res.data.success) setCandidates(res.data.data);
+    if (res.data.success) setCandidates(res.data.data || []);
   };
 
   const fetchStores = async () => {
@@ -35,14 +38,27 @@ export default function StoreList() {
 
   const openDrawer = (store = null) => {
     setEditingStore(store);
-    setFormData(store || { storeName: '', address: '', lng: '', lat: '', phone: '' });
+    const safe = store || {};
+    setFormData({
+      id: safe.id,
+      storeName: safe.storeName || '',
+      address: safe.address || '',
+      detailAddress: safe.detailAddress || '',
+      lng: safe.lng ?? '',
+      lat: safe.lat ?? '',
+      phone: safe.phone || '',
+    });
     setIsDrawerOpen(true);
     initMap(store);
   };
 
   const initMap = (existingStore) => {
+    if (!amapKey) {
+      toast.warn("未配置 VITE_AMAP_KEY，地图功能已禁用");
+      return;
+    }
     AMapLoader.load({
-      key: "你的高德Key", // 记得替换成你的真实 Key
+      key: amapKey,
       version: "2.0",
       plugins: ['AMap.Geocoder', 'AMap.Marker', 'AMap.CitySearch'] 
     }).then((AMap) => {
@@ -84,6 +100,8 @@ export default function StoreList() {
           }
         });
       });
+    }).catch(() => {
+      toast.error("地图加载失败，请检查高德 Key 或域名白名单配置");
     });
   };
 
@@ -181,12 +199,26 @@ export default function StoreList() {
                     className="w-full text-sm font-medium p-3.5 bg-white text-gray-700 rounded-2xl outline-none border border-blue-200 shadow-sm focus:ring-2 ring-blue-500/20 transition-all cursor-pointer"
                     onChange={(e) => handleSetManager(editingStore.id, e.target.value)}
                     defaultValue=""
+                    disabled={candidates.length === 0}
                   >
                     <option value="" disabled>下拉选择员工提拔为新店长...</option>
                     {candidates.map(u => (
                       <option key={u.id} value={u.id}>{u.username} ({u.phone || '无电话'})</option>
                     ))}
                   </select>
+                  {candidates.length === 0 && (
+                    <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+                      当前没有可提拔员工（STAFF）。请先到
+                      <button
+                        type="button"
+                        className="mx-1 font-bold underline hover:text-amber-900"
+                        onClick={() => navigate('/admin/users')}
+                      >
+                        员工管理
+                      </button>
+                      新增或将人员角色调整为 STAFF。
+                    </div>
+                  )}
                 </div>
               )}
               

@@ -1,10 +1,25 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
+const resolveApiBase = () => {
+  const envBase = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (envBase) return envBase.replace(/\/$/, '');
+
+  // 开发环境优先走 Vite 代理，规避 CORS 和固定 localhost 问题
+  if (import.meta.env.DEV) return '/api';
+
+  // 生产环境兜底：跟随当前域名，仅固定后端端口
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:8080/api`;
+  }
+  return 'http://localhost:8080/api';
+};
+
 // 🌟 统一使用 api 变量名
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api', 
-  timeout: 5000
+  baseURL: resolveApiBase(),
+  timeout: 8000
 });
 
 // 🌟 请求拦截器：自动注入 Token
@@ -67,5 +82,15 @@ export const getCandidateManagers = () => api.get('/admin/stores/candidates');
 export const bindStoreManager = (data) => api.post('/admin/stores/bind-manager', data);
 export const saveAdminUser = (data) => api.post('/admin/users/save', data);
 export const getDashboardStats = (params) => api.get('/admin/dashboard/stats', { params });
+
+export const getApiErrorMessage = (err, fallback = '请求失败') => {
+  const status = err?.response?.status;
+  const serverMsg = err?.response?.data?.msg || err?.response?.data?.message;
+  if (serverMsg) return serverMsg;
+  if (!err?.response) return '无法连接服务器，请确认后端服务(8080)已启动';
+  if (status >= 500) return '服务器内部错误，请稍后重试';
+  if (status === 404) return '接口不存在，请检查前后端地址配置';
+  return fallback;
+};
 
 export default api;

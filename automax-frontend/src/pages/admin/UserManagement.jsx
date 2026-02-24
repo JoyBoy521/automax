@@ -51,7 +51,14 @@ export default function UserManagement() {
     setEditingUser(user);
     setStoreDropdownOpen(false); // 每次打开抽屉时重置下拉状态
     if (user) {
-      setFormData({ ...user, password: '' }); 
+      setFormData({
+        id: user.id,
+        username: user.username || '',
+        password: '',
+        phone: user.phone || '',
+        role: user.role || 'STAFF',
+        storeId: user.storeId ?? '',
+      });
     } else {
       setFormData({ username: '', password: '', phone: '', role: 'STAFF', storeId: isAdmin ? '' : (stores[0]?.id || '') });
     }

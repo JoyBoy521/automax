@@ -1,6 +1,6 @@
 import AMapLoader from '@amap/amap-jsapi-loader';
 
-const AMAP_KEY = '38334760782f6e9b5f7fca11f6d061d2';
+const AMAP_KEY = import.meta.env.VITE_AMAP_KEY?.trim();
 
 export function normalizeCityName(city) {
   if (!city) return '';
@@ -22,6 +22,7 @@ function parseRectangleCenter(rectangle) {
 
 export async function detectCityByIP() {
   if (typeof window === 'undefined') return { city: '', center: null };
+  if (!AMAP_KEY) return { city: '', center: null };
   try {
     const AMap = await AMapLoader.load({
       key: AMAP_KEY,
@@ -61,6 +62,7 @@ function getBrowserPosition() {
 }
 
 async function reverseGeocodeCity(lng, lat) {
+  if (!AMAP_KEY) return '';
   try {
     const AMap = await AMapLoader.load({
       key: AMAP_KEY,

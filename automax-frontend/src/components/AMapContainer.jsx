@@ -4,6 +4,7 @@ import AMapLoader from '@amap/amap-jsapi-loader';
 export default function AMapContainer({ storeData, address, city }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
+  const amapKey = import.meta.env.VITE_AMAP_KEY?.trim();
 
   useEffect(() => {
     const safeStoreData = storeData || {};
@@ -11,11 +12,11 @@ export default function AMapContainer({ storeData, address, city }) {
     const latitude = Number.parseFloat(safeStoreData.latitude ?? safeStoreData.lat);
     const detailAddress = safeStoreData.detailAddress || address || city || 'AutoMax 门店';
 
-    // 坐标缺失时不初始化地图，避免页面崩溃
-    if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || !mapRef.current) return;
+    // 坐标缺失或未配置 key 时不初始化地图，避免页面报错
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || !mapRef.current || !amapKey) return;
 
     AMapLoader.load({
-      key: "38334760782f6e9b5f7fca11f6d061d2", 
+      key: amapKey,
       version: "2.0",
       plugins: ['AMap.Marker'] // 只展示位置的话，甚至不需要 Geocoder 插件
     }).then((AMap) => {
@@ -45,7 +46,7 @@ export default function AMapContainer({ storeData, address, city }) {
         mapInstance.current = null;
       }
     };
-  }, [storeData, address, city]);
+  }, [storeData, address, city, amapKey]);
 
   return <div ref={mapRef} className="w-full h-full min-h-[200px] rounded-2xl" />;
 }

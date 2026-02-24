@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Search, Heart, ClipboardList, User, LogOut, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { login, register } from '../api';
+import { getApiErrorMessage, login, register } from '../api';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { detectBestCity } from '../utils/ipLocation';
@@ -73,7 +73,7 @@ const GlobalHeader = ({ transparentAtTop = false }) => {
     } catch (err) {
       toast.error(
         <div className="px-2">
-          <div className="text-sm font-bold">服务器连接失败</div>
+          <div className="text-sm font-bold">{getApiErrorMessage(err, '登录失败')}</div>
         </div>
       );
     }
@@ -114,7 +114,7 @@ const GlobalHeader = ({ transparentAtTop = false }) => {
     } catch (err) {
       toast.error(
         <div className="px-2">
-          <div className="text-sm font-bold">服务器连接失败</div>
+          <div className="text-sm font-bold">{getApiErrorMessage(err, '注册失败')}</div>
         </div>
       );
     }
